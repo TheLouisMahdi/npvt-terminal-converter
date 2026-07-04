@@ -1,0 +1,100 @@
+<svg width="1536" height="768" viewBox="0 0 1536 768" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+      <stop offset="0" stop-color="#092615"/>
+      <stop offset="0.45" stop-color="#031008"/>
+      <stop offset="1" stop-color="#000301"/>
+    </radialGradient>
+    <linearGradient id="green" x1="0" x2="1">
+      <stop stop-color="#39ff88"/>
+      <stop offset="1" stop-color="#b8ffd2"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#39ff88" stroke-opacity=".08"/>
+    </pattern>
+    <style>
+      .mono{font-family:Consolas,Menlo,Monaco,monospace}.sans{font-family:Inter,Segoe UI,Arial,sans-serif}
+    </style>
+  </defs>
+  <rect width="1536" height="768" fill="url(#bg)"/>
+  <rect width="1536" height="768" fill="url(#grid)"/>
+  <g opacity=".5">
+    <circle cx="403" cy="42" r="6" fill="#39ff88" filter="url(#glow)"/>
+    <circle cx="1168" cy="36" r="6" fill="#39ff88" filter="url(#glow)"/>
+    <circle cx="1490" cy="443" r="5" fill="#39ff88" filter="url(#glow)"/>
+    <circle cx="46" cy="381" r="7" fill="#39ff88" filter="url(#glow)"/>
+  </g>
+  <path d="M24 56V20h40M1472 20h40v36M24 704v40h40M1472 744h40v-40" fill="none" stroke="#39ff88" stroke-width="2" opacity=".85"/>
+
+  <g filter="url(#glow)">
+    <rect x="92" y="54" width="1126" height="600" rx="18" fill="#020704" fill-opacity=".78" stroke="#39ff88" stroke-opacity=".62"/>
+  </g>
+  <rect x="92" y="54" width="1126" height="88" rx="18" fill="#03150a" fill-opacity=".62"/>
+  <circle cx="130" cy="90" r="9" fill="#ff4255"/>
+  <circle cx="160" cy="90" r="9" fill="#ffc857"/>
+  <circle cx="190" cy="90" r="9" fill="#ff7b45"/>
+  <text x="250" y="96" fill="#39ff88" font-size="18" class="mono">nova-vault-converter</text>
+  <text x="395" y="96" fill="#8da796" font-size="18" class="mono">/ offline</text>
+
+  <text x="132" y="212" fill="#39ff88" font-size="68" font-weight="900" letter-spacing="10" class="sans" filter="url(#glow)">NOVA</text>
+  <text x="450" y="206" fill="#e7fff0" font-size="54" font-weight="700" letter-spacing="6" class="mono">Private Vault Converter</text>
+  <text x="134" y="296" fill="#39ff88" font-size="30" class="mono">Offline · Local · Single HTML</text>
+
+  <g filter="url(#glow)">
+    <path d="M184 336h134l42 40v192H184z" fill="#031409" stroke="#39ff88" stroke-width="3"/>
+    <path d="M318 336v40h42" fill="#133d22" stroke="#39ff88" stroke-width="3"/>
+    <text x="226" y="434" fill="#39ff88" font-size="50" font-weight="900" class="mono">&lt;/&gt;</text>
+    <text x="218" y="500" fill="#b8ffd2" font-size="34" font-weight="800" class="mono">.npvt</text>
+    <line x1="210" y1="520" x2="338" y2="520" stroke="#39ff88" opacity=".45"/>
+    <text x="228" y="548" fill="#88a894" font-size="18" class="mono">VAULT FILE</text>
+  </g>
+
+  <g fill="none" stroke="#39ff88" stroke-width="4" filter="url(#glow)">
+    <path d="M444 456C560 430 635 326 858 309"/>
+    <path d="M444 456C590 452 702 405 858 394"/>
+    <path d="M444 456C590 485 706 494 858 489"/>
+    <path d="M444 456C555 520 694 548 858 572"/>
+  </g>
+  <text x="445" y="475" fill="#39ff88" font-size="62" font-weight="900" class="mono" filter="url(#glow)">»»</text>
+
+  <g class="mono" font-size="20" font-weight="700">
+    <rect x="882" y="274" width="300" height="70" rx="18" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <circle cx="922" cy="309" r="31" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <text x="966" y="305" fill="#e7fff0">VLESS</text><text x="966" y="326" fill="#39ff88" font-size="13">vless://xxxxxxxxxxxx</text>
+    <rect x="882" y="362" width="300" height="70" rx="18" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <circle cx="922" cy="397" r="31" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <text x="966" y="393" fill="#e7fff0">VMESS</text><text x="966" y="414" fill="#39ff88" font-size="13">vmess://xxxxxxxxxxx</text>
+    <rect x="882" y="450" width="300" height="70" rx="18" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <circle cx="922" cy="485" r="31" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <text x="966" y="481" fill="#e7fff0">TROJAN</text><text x="966" y="502" fill="#39ff88" font-size="13">trojan://xxxxxxxxxx</text>
+    <rect x="882" y="538" width="300" height="70" rx="18" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <circle cx="922" cy="573" r="31" fill="#06140b" stroke="#39ff88" stroke-opacity=".45"/>
+    <text x="966" y="569" fill="#e7fff0">SS</text><text x="966" y="590" fill="#39ff88" font-size="13">ss://xxxxxxxxxxxx</text>
+  </g>
+
+  <line x1="92" y1="600" x2="1218" y2="600" stroke="#39ff88" stroke-opacity=".28"/>
+  <text x="120" y="636" fill="#39ff88" font-size="20" class="mono">&gt;_ Conversion complete</text>
+  <rect x="369" y="618" width="13" height="26" fill="#39ff88"/>
+  <text x="796" y="636" fill="#8da796" font-size="14" class="mono">100% Local · No Network · Your Data Stays With You</text>
+
+  <g filter="url(#glow)">
+    <circle cx="1288" cy="344" r="48" fill="#06140b" stroke="#39ff88" stroke-opacity=".55"/>
+    <text x="1268" y="358" fill="#39ff88" font-size="48" class="mono">&gt;_</text>
+    <g stroke="#39ff88" stroke-width="2" opacity=".75">
+      <path d="M1328 344h54M1382 344h65M1447 344h62M1332 302l56-52M1388 250l65 36M1453 286l42 54M1328 386l58 52M1386 438l74-26M1460 412l34-66"/>
+    </g>
+    <g fill="#06140b" stroke="#39ff88" stroke-opacity=".45">
+      <circle cx="1318" cy="112" r="45"/><circle cx="1440" cy="166" r="45"/><circle cx="1450" cy="322" r="45"/><circle cx="1450" cy="448" r="45"/><circle cx="1357" cy="522" r="45"/>
+    </g>
+    <text x="1300" y="132" fill="#e7fff0" font-size="15" class="mono">open</text><text x="1303" y="153" fill="#39ff88" font-size="15" class="mono">.npvt</text>
+    <text x="1410" y="196" fill="#e7fff0" font-size="15" class="mono">Convert</text>
+    <text x="1424" y="320" fill="#e7fff0" font-size="15" class="mono">Copy All</text>
+    <text x="1430" y="448" fill="#e7fff0" font-size="15" class="mono">Export</text><text x="1435" y="469" fill="#39ff88" font-size="15" class="mono">.txt</text>
+    <text x="1330" y="542" fill="#e7fff0" font-size="15" class="mono">Offline</text>
+  </g>
+  <text x="605" y="728" fill="#8da796" font-size="22" letter-spacing="5" class="mono">&lt;/&gt; TheLouisMahdi</text>
+</svg>
