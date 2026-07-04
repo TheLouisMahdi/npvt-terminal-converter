@@ -1,79 +1,184 @@
-# NPVT Terminal Converter
+<div align="center">
 
-A clean, offline, terminal-inspired converter for working with NPVT files and V2Ray links directly inside the browser.
+<img src="assets/brand-preview.svg" alt="NPVT Terminal Converter social preview" width="100%" />
 
-The app is a single-file HTML tool with a green cyber-terminal interface, animated sections, drag-and-drop file handling, keyboard shortcuts, and a floating bubble menu.
+# 🟢 NPVT Terminal Converter
 
-> Built for local use. No server, no upload, no external dependency.
+### A colorful offline terminal-style converter for NPVT files and V2Ray links.
 
-## Features
+<p>
+  <img alt="Single HTML" src="https://img.shields.io/badge/Single_HTML-Portable-39ff88?style=for-the-badge&labelColor=06140b">
+  <img alt="Offline" src="https://img.shields.io/badge/Offline-Local_First-00d46a?style=for-the-badge&labelColor=06140b">
+  <img alt="No Upload" src="https://img.shields.io/badge/No_Server-Browser_Only-b8ffd2?style=for-the-badge&labelColor=06140b">
+  <img alt="Theme" src="https://img.shields.io/badge/UI-Green_Terminal-39ff88?style=for-the-badge&labelColor=06140b">
+</p>
 
-- Convert `.npvt`, exported JSON, raw link files, and Base64 subscriptions into V2Ray-compatible links.
-- Convert V2Ray links back into an encrypted NPVT1-style bundle.
-- Works completely offline by opening `index.html` in a browser.
-- Drag-and-drop file import with fallback file picker.
-- Separate conversion panels for both directions.
-- Copy, download TXT, and download Base64 subscription outputs.
-- Clear buttons for inputs, output, logs, and result tables.
-- Enter-to-convert shortcut.
-- Animated right-side bubble navigation menu.
-- Terminal/code-inspired green UI.
-- Small footer credit for `TheLouisMahdi`.
+<p>
+  <a href="#-features">Features</a> ·
+  <a href="#-quick-start">Quick Start</a> ·
+  <a href="#-supported-inputs">Supported Inputs</a> ·
+  <a href="#-privacy">Privacy</a> ·
+  <a href="#-brand-style">Brand Style</a>
+</p>
 
-## Supported Input Types
+</div>
+
+---
+
+## ✨ Overview
+
+**NPVT Terminal Converter** is a polished single-file HTML tool for converting supported NPVT, JSON, raw text, and Base64 subscription data into V2Ray-style links — plus a reverse converter that builds a portable NPVT-style bundle from pasted links.
+
+It is designed like a small cyber-terminal utility: dark glass panels, green glow, clean protocol chips, animated sections, drag-and-drop import, keyboard shortcuts, and a floating bubble menu.
+
+> Built for local use. Open `index.html`, convert, copy, download. No backend required.
+
+---
+
+## 🚀 Features
+
+<table>
+<tr>
+<td width="50%">
+
+### 🧩 Two-way conversion
+
+- NPVT / JSON / subscription → V2Ray links
+- V2Ray links → NPVT-style bundle
+- Supports multiple links at once
+
+</td>
+<td width="50%">
+
+### 🖥️ Terminal-grade UI
+
+- Green cyber-terminal theme
+- Animated right-side bubble menu
+- Responsive desktop/mobile layout
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 📂 Local file workflow
+
+- Drag-and-drop file import
+- Fallback file picker
+- Copy and download output
+
+</td>
+<td width="50%">
+
+### ⌨️ Fast shortcuts
+
+- Press `Enter` to convert
+- Use `Shift + Enter` for a new line
+- Clear table, logs, and panels quickly
+
+</td>
+</tr>
+</table>
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/TheLouisMahdi/npvt-terminal-converter.git
+
+# Open the project folder
+cd npvt-terminal-converter
+
+# Open index.html in your browser
+```
+
+Or simply download the repository and double-click:
+
+```text
+index.html
+```
+
+---
+
+## 📥 Supported Inputs
 
 ### NPVT / File to V2Ray Links
 
-The first converter can handle:
+The first converter can read supported local files and scan for links from:
 
-- `.npvt` files using the NPVT1-style structure supported by this tool
-- NapsternetV / NPV Tunnel-style exported JSON files
-- Raw text files containing V2Ray links
+- `.npvt` files compatible with the supported NPVT-style structure
+- JSON exports
+- Raw text files containing V2Ray-style links
 - Base64 subscription text
 - Mixed files containing multiple configs
 
-### V2Ray Links to NPVT
+### V2Ray Links to NPVT-style Bundle
 
-The second converter accepts one or more links such as:
+The second converter accepts links such as:
 
-- `vless://`
-- `vmess://`
-- `trojan://`
-- `ss://`
+```text
+vless://...
+vmess://...
+trojan://...
+ss://...
+```
 
-It then creates a downloadable encrypted NPVT1-style bundle.
+Then it generates a downloadable local bundle.
 
-## Privacy
+---
 
-Everything runs locally inside your browser. The tool does not send files, links, configs, or generated output to any server.
+## 🎨 Brand Style
 
-## Usage
+This repository now uses a strong visual identity:
 
-1. Download or clone this repository.
-2. Open `index.html` in any modern browser.
-3. Use the first panel to import NPVT/JSON/subscription files and extract V2Ray links.
-4. Use the second panel to paste V2Ray links and generate an NPVT file.
-5. Press `Enter` to run the active conversion.
-6. Press `Shift + Enter` inside text areas to insert a new line.
+| Element | Style |
+|---|---|
+| Main color | Neon green |
+| Background | Deep black / dark terminal |
+| Mood | Clean cyber utility |
+| Typography | Code editor / monospace feel |
+| Signature | `TheLouisMahdi` |
 
-## Repository Structure
+Recommended GitHub social preview prompt is available in:
+
+```text
+docs/SOCIAL_PREVIEW_PROMPT.md
+```
+
+---
+
+## 🔐 Privacy
+
+Everything runs locally inside your browser. The project does not need a backend server for the conversion workflow.
+
+For public bug reports or screenshots, replace real connection details with dummy values.
+
+---
+
+## 🗂️ Repository Structure
 
 ```text
 npvt-terminal-converter/
+├── assets/
+│   └── brand-preview.svg
+├── docs/
+│   ├── BRAND_GUIDE.md
+│   └── SOCIAL_PREVIEW_PROMPT.md
 ├── index.html
 ├── README.md
 ├── LICENSE
 ├── CHANGELOG.md
 ├── SECURITY.md
 ├── CONTRIBUTING.md
-├── REPO_DETAILS.md
 └── .github/
     └── ISSUE_TEMPLATE/
-        ├── bug_report.md
-        └── feature_request.md
 ```
 
-## Browser Support
+---
+
+## 🌐 Browser Support
 
 Recommended browsers:
 
@@ -84,16 +189,19 @@ Recommended browsers:
 
 The app uses modern browser APIs such as FileReader, Blob, TextEncoder, TextDecoder, and clipboard access.
 
-## Notes
+---
 
-NPVT compatibility can vary depending on the app version and the exact encryption/export format used by the source client. If a newer NPVT variant changes its structure, decryption may not work until the parser is updated.
+## 👤 Author
 
-## Author
+<div align="center">
 
-Created for **Mahdi Gh**.
-
+Made with a green terminal soul by **Mahdi Gh**  
 GitHub: [TheLouisMahdi](https://github.com/TheLouisMahdi)
 
-## License
+</div>
+
+---
+
+## 📄 License
 
 This project is released under the MIT License.
