@@ -8,18 +8,22 @@
 
 <br><br>
 
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
-  <img src="https://img.shields.io/badge/⬇_DOWNLOAD-Index.html-39ff88?style=for-the-badge&labelColor=020704" alt="Download Index.html">
+<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">
+  <img src="https://img.shields.io/badge/⬇_MOBILE_DOWNLOAD-ZIP-39ff88?style=for-the-badge&labelColor=020704" alt="Mobile Download ZIP">
 </a>
 <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
-  <img src="https://img.shields.io/badge/Portable-Single_HTML-00d46a?style=for-the-badge&labelColor=020704" alt="Single HTML">
+  <img src="https://img.shields.io/badge/DESKTOP_RAW-Index.html-00d46a?style=for-the-badge&labelColor=020704" alt="Desktop raw Index.html">
 </a>
 <img src="https://img.shields.io/badge/Runtime-Local_Only-b8ffd2?style=for-the-badge&labelColor=020704" alt="Local only">
 <img src="https://img.shields.io/badge/Container-NPVT1-39ff88?style=for-the-badge&labelColor=020704" alt="NPVT1">
 
 <h2>
-  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">Download the converter</a>
+  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">Download for mobile</a>
 </h2>
+
+<p>
+  Mobile browsers may open raw HTML as text. Use the ZIP download above, then extract and open <code>Index.html</code> locally.
+</p>
 
 </div>
 
@@ -35,15 +39,32 @@ The current engine is based on the real NPVT1 structure observed from valid NPV 
 
 ---
 
-## Fast Download
+## Download
 
-Download the application as one standalone HTML file:
+### Recommended for Android / iOS
+
+Download the repository ZIP. This forces a real file download on mobile browsers:
+
+```text
+https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip
+```
+
+After download:
+
+1. Extract the ZIP file.
+2. Open the extracted folder.
+3. Tap `Index.html`.
+4. Use the converter locally in your browser.
+
+### Direct HTML Link
+
+Desktop browsers usually handle the direct HTML file correctly:
 
 ```text
 https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html
 ```
 
-Then open `Index.html` directly in your browser.
+On some mobile browsers, this link may display the source code as text instead of downloading it. Use the ZIP link above if that happens.
 
 ---
 
