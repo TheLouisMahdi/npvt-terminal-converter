@@ -326,6 +326,16 @@ vless://uuid@example.com:443?security=tls&type=ws&host=example.com&path=%2Fws&sn
 
 ---
 
+## NPV Tunnel Ping Note
+
+NPV Tunnel may sometimes show no ping or report ping as unavailable even when an imported profile is structurally valid. The app's ping/check routine is not always equivalent to a real tunnel connection attempt.
+
+If the server itself is alive and the protocol, transport, SNI, security settings, routing path, and network access are healthy, the profile can still connect normally even when ping is not displayed. Do not treat a missing ping result alone as proof that the generated `.npvt` file is broken.
+
+This converter only maps and exports profile data. It cannot guarantee upstream server availability, ISP routing, DNS behavior, firewall state, or server-side configuration health.
+
+---
+
 ## Privacy Model
 
 This project is local-first by design.
@@ -351,7 +361,7 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 ├── README.md                  # Project documentation
 ├── LICENSE                    # License
 └── assets/
-    └── readme-preview.svg     # GitHub README preview image
+    └── Prev.png               # GitHub README preview image
 ```
 
 ---
