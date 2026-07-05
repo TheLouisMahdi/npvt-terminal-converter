@@ -1100,7 +1100,9 @@ function outboundToProfiles(outbound, inheritedName='') {
   if (!protocol) return profiles;
   const common = streamSettingsToProfile(outbound.streamSettings || {});
   const settings = outbound.settings || {};
-  const baseName = outbound.tag || outbound.name || outbound.remarks || inheritedName || protocol.toUpperCase();
+  const outboundTag = String(outbound.tag || '').trim();
+  const genericOutboundTag = /^(proxy|direct|block|dns|dns-out|blackhole|freedom)$/i.test(outboundTag);
+  const baseName = firstValue(outbound.name, outbound.remarks, genericOutboundTag ? '' : outboundTag, inheritedName, protocol.toUpperCase());
 
   if ((protocol === 'vless' || protocol === 'vmess') && Array.isArray(settings.vnext)) {
     for (const server of settings.vnext) {
@@ -1176,8 +1178,22 @@ function flattenJSONProfiles(obj) {
 
     if (x.v2rayProfile && typeof x.v2rayProfile === 'object') {
       const vp = x.v2rayProfile;
-      const vpOnlyJson = typeof vp.v2rayJson === 'string' && vp.v2rayJson.trim() && !firstValue(vp.password, vp.id, vp.uuid, vp.userId);
-      if (!vpOnlyJson) pushProfile(vp, name);
+      const vpName = firstValue(vp.remarks, vp.name, name);
+
+      // Some real NPV Tunnel exports store the actual Xray/Trojan/VMess/VLESS
+      // outbound only inside v2rayProfile.v2rayJson while the visible wrapper
+      // only contains display metadata such as name/address/configType.
+      // Older builds skipped that JSON-only v2rayProfile branch, so those files
+      // decrypted correctly but produced zero reverse links.
+      let vpEmbeddedJsonParsed = false;
+      if (typeof vp.v2rayJson === 'string' && vp.v2rayJson.trim()) {
+        const embeddedCandidates = parseJSONCandidates(vp.v2rayJson);
+        vpEmbeddedJsonParsed = embeddedCandidates.length > 0;
+        for (const embedded of embeddedCandidates) visit(embedded, vpName);
+      }
+
+      const vpOnlyJson = vpEmbeddedJsonParsed && !firstValue(vp.password, vp.id, vp.uuid, vp.userId);
+      if (!vpOnlyJson) pushProfile(vp, vpName);
     }
 
     // NPV/Napsternet exports and hand-made JSON often use flat profile objects.
