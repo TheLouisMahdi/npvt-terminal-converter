@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/readme-preview.svg" alt="NPV Tunnel NPVT Converter technical preview" width="100%" />
+<img src="assets/prev.svg" alt="NPV Tunnel NPVT Converter technical preview" width="100%" />
 
 # NPV Tunnel NPVT Converter
 
