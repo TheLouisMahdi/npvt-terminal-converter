@@ -847,9 +847,19 @@ function shouldPersistAsFieldsOnly(p){
   const proto = npvProtocolName(p);
   const network = String(p.network || '').toLowerCase();
   const security = String(p.security || '').toLowerCase();
-  // Real NPV files often store simple VLESS URI imports as fields-only with persistJson=true.
-  // Reality/Trojan/VMess need embedded JSON for maximum compatibility.
-  return proto === 'vless' && security !== 'reality' && network !== 'tcp';
+
+  // REALITY and plain TCP-sensitive profiles are safer as full embedded Xray JSON.
+  if (security === 'reality') return false;
+  if (network === 'tcp') return false;
+
+  // Real NPV exports commonly keep simple VLESS and simple Trojan WS/TLS profiles
+  // as field-based v2rayProfile objects with v2rayJson="" and persistJson=true.
+  // Keeping these field-based avoids losing app-side ping/import behavior on
+  // CDN/WebSocket profiles where host/path/sni are stored as direct fields.
+  if (proto === 'vless') return true;
+  if (proto === 'trojan' && (network === 'ws' || network === 'grpc' || network === 'httpupgrade' || network === 'splithttp')) return true;
+
+  return false;
 }
 function compactJson(obj){
   return JSON.stringify(obj);
@@ -1241,9 +1251,17 @@ function normalizedProfile(p, fallbackName='') {
   const streamLike = p.streamSettings ? streamSettingsToProfile(p.streamSettings) : {};
   const network = firstValue(p.network, p.net, streamLike.network, 'tcp');
   const security = firstValue(p.security, p.streamSecurity, p.tls, streamLike.security, 'none');
+
+  // Important compatibility rule:
+  // In NPV/Napsternet v2rayProfile objects, "server" is the real remote address
+  // and "host" is usually the WebSocket HTTP Host header.
+  // Older builds treated p.host as the server address before using it as ws Host,
+  // so field-based WS/TLS profiles were exported without ?host=... and could lose ping/connectivity.
+  const remoteHost = firstValue(p.server, p.add, p.addressHost, fromAddr.host, p.host);
+  const npvWsHost = (firstValue(p.server, p.add, fromAddr.host) && p.host && p.host !== remoteHost) ? p.host : '';
   return {
     name: firstValue(p.remarks, p.ps, p.name, p.tag, fallbackName, 'NPVT config'),
-    host: firstValue(p.server, p.add, p.host, p.addressHost, fromAddr.host),
+    host: remoteHost,
     port: firstValue(p.serverPort, p.port, fromAddr.port),
     id: firstValue(p.password, p.id, p.uuid, p.userId, p.pass),
     username: firstValue(p.username, p.user),
@@ -1254,7 +1272,7 @@ function normalizedProfile(p, fallbackName='') {
     headerType: firstValue(p.headerType, p.type, streamLike.headerType, 'none'),
     security,
     sni: firstValue(p.sni, p.serverName, p.peer, streamLike.sni),
-    hostHeader: firstValue(p.hostHeader, p.requestHost, p.wsHost, p.hostName, p.headersHost, streamLike.hostHeader),
+    hostHeader: firstValue(p.hostHeader, p.requestHost, p.wsHost, p.hostName, p.headersHost, streamLike.hostHeader, npvWsHost),
     path: firstValue(p.path, p.requestPath, p.wsPath, streamLike.path),
     serviceName: firstValue(p.serviceName, p.grpcServiceName, streamLike.serviceName),
     flow: firstValue(p.flow, streamLike.flow),
