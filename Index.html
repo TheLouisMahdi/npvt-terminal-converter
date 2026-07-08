@@ -109,7 +109,11 @@ h1{margin:10px 0 13px;font-family:var(--mono);font-size:clamp(36px,6vw,72px);lin
 .topbar{height:46px;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.24);font-family:var(--mono);color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 18px var(--green);flex:0 0 auto}
 .dot:nth-child(2){background:#c8ff6b}.dot:nth-child(3){background:#ff6688}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid,.json-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.json-grid{margin-top:18px;align-items:stretch}
+.json-grid>.panel{height:100%;display:flex;flex-direction:column}
+.json-grid>.panel .panes{flex:1}
+.json-grid>.panel textarea{min-height:190px}
 .panel{padding:22px}
 .panel h2{margin:0 0 8px;font-family:var(--mono);font-size:22px;letter-spacing:-.03em;color:#f1fff6}
 .panel p{margin:0 0 16px;color:var(--muted);line-height:1.72;font-size:14px}
@@ -162,7 +166,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;border:1px solid var(--line2);background:rgba(5,18,10,.94);color:var(--green3);border-radius:999px;padding:11px 16px;font-family:var(--mono);font-size:12px;z-index:50;transition:.25s;box-shadow:0 18px 50px rgba(0,0,0,.35)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:980px){
-  .hero,.grid,.logs{grid-template-columns:1fr}
+  .hero,.grid,.json-grid,.logs{grid-template-columns:1fr}
   .hero-copy{padding:26px}
   .stats{grid-template-columns:repeat(2,1fr)}
   .panel{padding:20px}
@@ -196,7 +200,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
   table{min-width:760px;font-size:11px}
   .log{max-height:150px}
   .footer{justify-content:center;text-align:center;font-size:11px;margin-bottom:6px}
-  .bubble-nav{left:50%;right:auto;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:8px;padding:8px;border:1px solid rgba(57,255,136,.22);border-radius:999px;background:rgba(2,7,4,.72);backdrop-filter:blur(16px);box-shadow:0 20px 70px rgba(0,0,0,.5);max-width:calc(100% - 18px)}
+  .bubble-nav{left:50%;right:auto;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:8px;padding:8px;border:1px solid rgba(57,255,136,.22);border-radius:999px;background:rgba(2,7,4,.72);backdrop-filter:blur(16px);box-shadow:0 20px 70px rgba(0,0,0,.5);max-width:calc(100% - 18px);overflow-x:auto;scrollbar-width:none}.bubble-nav::-webkit-scrollbar{display:none}
   .bubble-toggle,.bubble{width:44px;height:44px;opacity:1;transform:none;pointer-events:auto;font-size:11px;box-shadow:0 8px 22px rgba(0,0,0,.32),0 0 18px rgba(57,255,136,.1)}
   .bubble:hover,.bubble-toggle:hover{transform:translateY(-2px) scale(1.02)}
   .toast{bottom:calc(76px + env(safe-area-inset-bottom));width:max-content;max-width:calc(100% - 30px);text-align:center}
@@ -219,6 +223,8 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
   <button class="bubble-toggle" id="bubbleToggle" title="Menu" aria-label="Toggle menu">::</button>
   <a class="bubble" href="#npvtToLinks" title="NPVT to links">IN</a>
   <a class="bubble" href="#linksToNpvt" title="Links to NPVT">OUT</a>
+  <a class="bubble" href="#jsonTools" title="JSON to links / NPVT">JS</a>
+  <a class="bubble" href="#linksToJsonTools" title="V2Ray links / NPVT / TXT to JSON">LJ</a>
   <a class="bubble" href="#resultsTable" title="Results table">TB</a>
   <a class="bubble" href="https://github.com/TheLouisMahdi" target="_blank" rel="noopener" title="GitHub">GH</a>
 </nav>
@@ -231,6 +237,8 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       <div class="hero-actions">
         <a class="btn primary" href="#npvtToLinks">Start conversion</a>
         <a class="btn secondary" href="#linksToNpvt">Build NPVT</a>
+        <a class="btn secondary" href="#jsonTools">JSON tools</a>
+        <a class="btn secondary" href="#linksToJsonTools">Links → JSON</a>
       </div>
     </div>
     <aside class="hero-panel" aria-label="Runtime overview">
@@ -328,6 +336,80 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
         </div>
       </section>
     </div>
+    <div class="json-grid" id="jsonConversionGrid">
+    <section class="panel" id="jsonTools">
+      <h2>03 — Xray / V2Ray JSON → Links / NPVT</h2>
+      <p>Paste a full Xray/V2Ray JSON config, an NPV <code>v2rayProfile</code> object, a profile array, or mixed exported JSON. This dedicated panel extracts supported outbounds, converts them to shorter share links, and can also rebuild them into a real-schema NPVT1 container.</p>
+      <div class="panes">
+        <div>
+          <label class="input-label" for="jsonInput">JSON input</label>
+          <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON here: {"outbounds":[...]}, [{"v2rayProfile":{...}}], or a full Xray config...'></textarea>
+        </div>
+        <div>
+          <label class="input-label" for="jsonOutput">JSON conversion output</label>
+          <textarea id="jsonOutput" spellcheck="false" readonly placeholder="V2Ray links or NPVT1 output will appear here..."></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <div class="switch-stack">
+          <label class="switch"><input id="jsonOneTokenPerLink" type="checkbox"> one NPVT1 container per JSON profile</label>
+          <small class="hint-line">Use Links for short share URLs. Use NPVT for direct NPV Tunnel import. JSON parsing keeps WebSocket host, path, TLS SNI, ALPN, REALITY public key, shortId, spiderX, gRPC serviceName, and supported protocol credentials.</small>
+        </div>
+        <div class="controls">
+          <button class="btn primary" type="button" id="jsonToLinks">JSON → Links</button>
+          <button class="btn secondary" type="button" id="jsonToNpvt">JSON → NPVT</button>
+          <button class="btn secondary" type="button" id="copyJsonOutput" disabled>Copy output</button>
+          <button class="btn secondary" type="button" id="downloadJsonOutput" disabled>Download output</button>
+          <button class="btn bad" type="button" id="clearJsonTools">Clear JSON</button>
+        </div>
+      </div>
+      <div>
+        <label class="input-label" for="jsonLog">JSON log</label>
+        <div class="log" id="jsonLog">Ready.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="linksToJsonTools">
+      <h2>04 — Links / NPVT / TXT → Separate JSON Configs</h2>
+      <p>Paste one V2Ray link, multiple links, a Base64 subscription, an NPVT1 file, or a text file containing any of them. This reverse JSON tool extracts every supported config and exports one clean Xray/V2Ray JSON object per config. The TXT output keeps an empty line between JSON blocks so they stay visually separated.</p>
+      <div class="dropzone" id="dropLinksJson" role="button" tabindex="0" aria-label="Choose or drop files for links to separated JSON configs">
+        <input id="fileLinksJson" type="file" multiple accept=".npvt,.txt,.json,.conf,.yaml,.yml,*/*">
+        <div class="drop-icon">[ ]</div>
+        <strong>Drop links / NPVT / TXT here or tap to choose</strong>
+        <span>Output: separate pretty JSON configs in one TXT file, with a blank line between each config.</span>
+      </div>
+      <div class="actions">
+        <button class="file-btn primary" type="button" id="pickLinksJson">Choose files</button>
+        <button class="btn" type="button" id="linksToJson">Links → JSON</button>
+        <button class="btn bad" type="button" id="clearLinksJsonTools">Clear panel</button>
+      </div>
+      <div class="panes">
+        <div>
+          <label class="input-label" for="linksJsonInput">Input links / NPVT / text</label>
+          <textarea id="linksJsonInput" spellcheck="false" placeholder="Paste vless://, vmess://, trojan://, ss://, socks://, NPVT1, Base64 subscription, or mixed text here..."></textarea>
+        </div>
+        <div>
+          <label class="input-label" for="linksJsonOutput">Separated JSON output</label>
+          <textarea id="linksJsonOutput" spellcheck="false" readonly placeholder="One JSON config per profile will appear here. Each JSON block is separated by a blank line..."></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <div class="switch-stack">
+          <small class="hint-line">Each V2Ray share link is parsed with the same field-preserving engine used by NPVT generation, then rebuilt as a standalone Xray-style JSON config with inbounds, outbounds, streamSettings, TLS/REALITY/WS/gRPC metadata, DNS, and routing.</small>
+        </div>
+        <div class="controls">
+          <button class="btn primary" type="button" id="copyLinksJsonOutput" disabled>Copy JSON TXT</button>
+          <button class="btn secondary" type="button" id="downloadLinksJsonOutput" disabled>Download JSON TXT</button>
+        </div>
+      </div>
+      <div>
+        <label class="input-label" for="linksJsonLog">Links → JSON log</label>
+        <div class="log" id="linksJsonLog">Ready.</div>
+      </div>
+    </section>
+
+    </div>
+
     <section class="panel" id="resultsTable">
       <div class="stats" aria-label="Conversion statistics">
         <div class="stat"><b id="statFiles">0</b><span>files processed</span></div>
@@ -748,7 +830,7 @@ function alpnList(v){
   return String(v || '').split(',').map(x => x.trim()).filter(Boolean);
 }
 function buildXrayStreamSettings(p){
-  const network = firstValue(p.network, 'tcp');
+  const network = normalizeNetworkId(firstValue(p.network, 'tcp'));
   const security = firstValue(p.security, 'none') || 'none';
   const stream = {network, security};
   if (security === 'tls') {
@@ -1061,6 +1143,16 @@ function getHeaderValue(headers, ...keys) {
   return '';
 }
 
+function normalizeNetworkId(v){
+  const n = String(v || '').trim().toLowerCase();
+  if (!n) return '';
+  if (n === 'websocket') return 'ws';
+  if (n === 'raw') return 'tcp';
+  if (n === 'http' || n === 'h2') return 'http';
+  if (n === 'httpupgrade' || n === 'httpupgrade') return 'httpupgrade';
+  if (n === 'splithttp' || n === 'split-http' || n === 'xhttp') return n === 'xhttp' ? 'xhttp' : 'splithttp';
+  return n;
+}
 function streamSettingsToProfile(stream={}) {
   stream = stream || {};
   const tls = stream.tlsSettings || {};
@@ -1079,7 +1171,7 @@ function streamSettingsToProfile(stream={}) {
     tls && Object.keys(tls).length ? 'tls' : '',
     'none'
   );
-  const network = firstValue(stream.network, stream.net, ws.path !== undefined ? 'ws' : '', grpc.serviceName !== undefined ? 'grpc' : '', 'tcp');
+  const network = normalizeNetworkId(firstValue(stream.network, stream.net, ws.path !== undefined ? 'ws' : '', grpc.serviceName !== undefined ? 'grpc' : '', 'tcp'));
   return {
     network,
     security,
@@ -1091,6 +1183,7 @@ function streamSettingsToProfile(stream={}) {
     spiderX: firstValue(reality.spiderX, reality.spx, stream.spiderX, stream.spx),
     alpn: firstValue(tls.alpn, reality.alpn, stream.alpn),
     hostHeader: firstValue(
+      ws.host,
       getHeaderValue(ws.headers, 'Host', 'host'),
       getHeaderValue(httpUpgrade.headers, 'Host', 'host'),
       getHeaderValue(splithttp.headers, 'Host', 'host'),
@@ -1098,7 +1191,8 @@ function streamSettingsToProfile(stream={}) {
       http.host
     ),
     path: firstValue(ws.path, http.path, httpUpgrade.path, splithttp.path, tcpRequest.path),
-    serviceName: firstValue(grpc.serviceName, grpc.authority),
+    serviceName: firstValue(grpc.serviceName),
+    authority: firstValue(grpc.authority),
     insecure: !!firstValue(tls.allowInsecure, reality.allowInsecure, stream.allowInsecure)
   };
 }
@@ -1249,7 +1343,7 @@ function normalizedProfile(p, fallbackName='') {
   p = p || {};
   const fromAddr = splitHostPort(p.address || p.serverAddress || '');
   const streamLike = p.streamSettings ? streamSettingsToProfile(p.streamSettings) : {};
-  const network = firstValue(p.network, p.net, streamLike.network, 'tcp');
+  const network = normalizeNetworkId(firstValue(p.network, p.net, streamLike.network, 'tcp'));
   const security = firstValue(p.security, p.streamSecurity, p.tls, streamLike.security, 'none');
 
   // Important compatibility rule:
@@ -1275,6 +1369,7 @@ function normalizedProfile(p, fallbackName='') {
     hostHeader: firstValue(p.hostHeader, p.requestHost, p.wsHost, p.hostName, p.headersHost, streamLike.hostHeader, npvWsHost),
     path: firstValue(p.path, p.requestPath, p.wsPath, streamLike.path),
     serviceName: firstValue(p.serviceName, p.grpcServiceName, streamLike.serviceName),
+    authority: firstValue(p.authority, p.grpcAuthority, streamLike.authority),
     flow: firstValue(p.flow, streamLike.flow),
     fp: firstValue(p.fingerPrint, p.fingerprint, p.fp, streamLike.fp),
     publicKey: firstValue(p.publicKey, p.pbk, streamLike.publicKey),
@@ -1339,6 +1434,7 @@ function profileToLink(p, fallbackName='') {
     if (n.hostHeader && (n.network === 'ws' || n.network === 'httpupgrade' || n.network === 'splithttp')) addParam(q, 'host', n.hostHeader);
     if (n.path) addParam(q, 'path', n.path);
     if (n.serviceName || n.network === 'grpc') addParam(q, 'serviceName', n.serviceName);
+    if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
     return `vless://${enc(n.id)}@${n.host}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
@@ -1373,6 +1469,7 @@ function profileToLink(p, fallbackName='') {
     if (n.hostHeader && (n.network === 'ws' || n.network === 'httpupgrade' || n.network === 'splithttp')) addParam(q, 'host', n.hostHeader);
     if (n.path) addParam(q, 'path', n.path);
     if (n.alpn) addParam(q, 'alpn', n.alpn);
+    if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
     return `trojan://${enc(n.id)}@${n.host}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
@@ -1686,6 +1783,177 @@ async function processReverseFiles(files){
   $('reverseInput').value = content.trim();
   buildNpvt();
 }
+function parseJsonToolInput(source='json input'){
+  const text = $('jsonInput').value || '';
+  const candidates = parseJSONCandidates(text);
+  const errors = [];
+  const links = [];
+  let profileCount = 0;
+  if (!text.trim()) errors.push('JSON input is empty.');
+  if (text.trim() && !candidates.length) errors.push('No valid JSON object or array was found.');
+  for (const obj of candidates) {
+    const converted = convertJSONToLinks(obj, source);
+    links.push(...converted.links);
+    errors.push(...converted.errors);
+    profileCount += converted.profiles || 0;
+  }
+  const unique = uniqueLinkObjects(links);
+  return {links: unique, errors, profileCount, candidateCount: candidates.length};
+}
+function renderJsonTool(output='', lines=['Ready.']){
+  $('jsonOutput').value = output || '';
+  $('copyJsonOutput').disabled = !output;
+  $('downloadJsonOutput').disabled = !output;
+  setLog('jsonLog', lines);
+}
+function jsonToLinksAction(){
+  const res = parseJsonToolInput('json tools');
+  const output = linksText(res.links);
+  const lines = [
+    `JSON candidates: ${res.candidateCount} | Profiles scanned: ${res.profileCount} | Links: ${res.links.length} | Warnings: ${res.errors.length}`,
+    'Mode: JSON → compact V2Ray share links'
+  ];
+  if (res.errors.length) lines.push('', ...res.errors.slice(0,80));
+  if (!res.links.length && !res.errors.length) lines.push('No convertible V2Ray/Xray profiles found.');
+  renderJsonTool(output, lines);
+  toast(res.links.length ? 'JSON converted to links.' : 'No JSON links found.');
+}
+function jsonToNpvtAction(){
+  const res = parseJsonToolInput('json tools');
+  const lines = [
+    `JSON candidates: ${res.candidateCount} | Profiles scanned: ${res.profileCount} | Links: ${res.links.length} | Warnings: ${res.errors.length}`,
+    'Mode: JSON → real-schema NPVT1 container'
+  ];
+  let output = '';
+  if (res.links.length) {
+    try {
+      if ($('jsonOneTokenPerLink').checked) output = res.links.map(x => buildCompleteNPVTContainer([x])).join('\n');
+      else output = buildCompleteNPVTContainer(res.links);
+      lines.push(`NPVT1 containers: ${$('jsonOneTokenPerLink').checked ? res.links.length : 1}`);
+    } catch (e) {
+      lines.push(`NPVT build failed: ${e.message || e}`);
+    }
+  } else {
+    lines.push('No supported links were available for NPVT generation.');
+  }
+  if (res.errors.length) lines.push('', ...res.errors.slice(0,80));
+  renderJsonTool(output, lines);
+  toast(output ? 'JSON converted to NPVT1.' : 'JSON to NPVT failed.');
+}
+
+
+function linkItemToStandaloneJsonObject(item, index=0){
+  const link = String((item && item.link) || item || '').trim();
+  if (!link) throw new Error('empty link');
+  const parsed = linkToNpvParsedProfile(link);
+  const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
+  parsed.name = name;
+  const json = buildRealStyleXrayJsonFromParsedProfile(parsed);
+  json.remarks = name;
+  if (json.outbounds && json.outbounds[0]) json.outbounds[0].tag = 'proxy';
+  return json;
+}
+function separatedJsonOutputFromLinks(linkItems){
+  const errors = [];
+  const blocks = [];
+  const supported = [];
+  const items = uniqueLinkObjects(linkItems || []);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    try {
+      const obj = linkItemToStandaloneJsonObject(item, i);
+      blocks.push(JSON.stringify(obj, null, 2));
+      supported.push(item);
+    } catch (e) {
+      const label = (item && (item.name || item.link)) || `link ${i + 1}`;
+      errors.push(`${String(label).slice(0, 140)}: ${e.message || e}`);
+    }
+  }
+  return {output: blocks.join('\n\n'), blocks, supported, errors};
+}
+function linksTextToSeparatedJson(text, source='links json input', forceNPVT=false){
+  const res = collectLinksFromText(String(text || ''), source, forceNPVT);
+  const converted = separatedJsonOutputFromLinks(res.links);
+  return {
+    links: uniqueLinkObjects(res.links),
+    output: converted.output,
+    blocks: converted.blocks,
+    supported: converted.supported,
+    decrypted: res.decrypted.length,
+    errors: [...res.errors, ...converted.errors]
+  };
+}
+function renderLinksJsonTool(output='', lines=['Ready.']){
+  $('linksJsonOutput').value = output || '';
+  $('copyLinksJsonOutput').disabled = !output;
+  $('downloadLinksJsonOutput').disabled = !output;
+  setLog('linksJsonLog', lines);
+}
+function linksToJsonAction(){
+  const text = $('linksJsonInput').value || '';
+  const res = linksTextToSeparatedJson(text, 'links json input', /NPVT1/i.test(text));
+  const lines = [
+    `Input links found: ${res.links.length} | JSON configs: ${res.blocks.length} | NPVT blocks: ${res.decrypted} | Warnings: ${res.errors.length}`,
+    'Mode: V2Ray links / NPVT / TXT → separate standalone Xray JSON configs',
+    'Output format: one pretty JSON object per config, separated by one blank line.'
+  ];
+  if (!String(text).trim()) lines.push('Input is empty.');
+  if (res.errors.length) lines.push('', ...res.errors.slice(0,80));
+  if (String(text).trim() && !res.blocks.length && !res.errors.length) lines.push('No supported V2Ray links or NPVT profiles found.');
+  renderLinksJsonTool(res.output, lines);
+  toast(res.blocks.length ? 'Links converted to separated JSON.' : 'No JSON configs generated.');
+}
+async function processLinksJsonFiles(files){
+  if(!files || !files.length) return;
+  const allLinks = [];
+  const errors = [];
+  let decrypted = 0;
+  let processed = 0;
+  const seen = new Set();
+  const inputParts = [];
+  for (const file of files) {
+    processed++;
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const text = bytesToText(bytes);
+      inputParts.push(`\n\n----- ${file.name} -----\n${text}`);
+      const forceNPVT = file.name.toLowerCase().endsWith('.npvt') || /NPVT1/i.test(text);
+      const res = collectLinksFromText(text, file.name, forceNPVT);
+      if(forceNPVT && !res.decrypted.length && bytes.length > 16 && !/NPVT1/i.test(text)){
+        try{
+          const plain = bytesToText(decryptNPVTBytes(bytes)).replace(/\0+$/g, '').trim();
+          if(plain){
+            res.decrypted.push({index:'binary', text:plain});
+            absorbPlaintextIntoResult(res, plain, file.name, 'binary NPVT');
+          }
+        }catch(e){
+          res.errors.push(`binary NPVT fallback: ${e.message}`);
+        }
+      }
+      decrypted += res.decrypted.length;
+      for (const l of res.links) {
+        if(!seen.has(l.link)){ seen.add(l.link); allLinks.push(l); }
+      }
+      for (const e of res.errors) errors.push(`${file.name}: ${e}`);
+      if(!res.links.length) errors.push(`${file.name}: no supported links were found`);
+    } catch (e) {
+      errors.push(`${file.name}: ${e.message || e}`);
+    }
+  }
+  $('linksJsonInput').value = inputParts.join('\n').trim();
+  const converted = separatedJsonOutputFromLinks(allLinks);
+  const finalErrors = [...errors, ...converted.errors];
+  const lines = [
+    `Files: ${processed} | Input links found: ${allLinks.length} | JSON configs: ${converted.blocks.length} | NPVT blocks: ${decrypted} | Warnings: ${finalErrors.length}`,
+    'Mode: file / NPVT / TXT → separate standalone Xray JSON configs',
+    'Output format: one pretty JSON object per config, separated by one blank line.'
+  ];
+  if(finalErrors.length) lines.push('', ...finalErrors.slice(0,80));
+  renderLinksJsonTool(converted.output, lines);
+  toast(converted.blocks.length ? 'Files converted to separated JSON.' : 'No JSON configs generated.');
+}
+
 function wireDrop(zoneId, fileId, handler){
   const zone=$(zoneId); const input=$(fileId);
   zone.addEventListener('click', e => {
@@ -1707,22 +1975,38 @@ document.addEventListener('drop',e=>e.preventDefault());
 $('bubbleToggle').addEventListener('click',()=>$('bubbleNav').classList.toggle('open'));
 $('pickForward').addEventListener('click',()=>$('fileForward').click());
 $('pickReverse').addEventListener('click',()=>$('fileReverse').click());
+$('pickLinksJson').addEventListener('click',()=>$('fileLinksJson').click());
 wireDrop('dropForward','fileForward',processForwardFiles);
 wireDrop('dropReverse','fileReverse',processReverseFiles);
+wireDrop('dropLinksJson','fileLinksJson',processLinksJsonFiles);
 $('convertForward').addEventListener('click',processForwardText);
 $('buildReverse').addEventListener('click',buildNpvt);
+$('linksToJson').addEventListener('click',linksToJsonAction);
 $('clearForward').addEventListener('click',()=>{state.files=0;state.links=[];state.decrypted=0;state.errors=[];$('forwardInput').value='';$('forwardOutput').value='';$('fileForward').value='';renderForward();setLog('forwardLog','Ready.');});
 $('clearReverse').addEventListener('click',()=>{state.reverseLinks=[];state.reverseErrors=[];state.npvtText='';state.reverseProfileJson='[]';state.reverseSubscription='';$('reverseInput').value='';$('reverseOutput').value='';$('fileReverse').value='';renderReverse();setLog('reverseLog','Ready.');});
+$('clearLinksJsonTools').addEventListener('click',()=>{$('linksJsonInput').value=''; $('linksJsonOutput').value=''; $('fileLinksJson').value=''; renderLinksJsonTool('', ['Ready.']);});
 $('copyLinks').addEventListener('click',()=>copyText($('forwardOutput').value));
 $('downloadLinks').addEventListener('click',()=>downloadText('v2ray_links_thelouis_mahdi.txt',$('forwardOutput').value));
 $('downloadSub').addEventListener('click',()=>downloadText('v2ray_subscription_thelouis_mahdi_base64.txt',base64Utf8($('forwardOutput').value)));
 $('copyNpvt').addEventListener('click',()=>copyText($('reverseOutput').value));
 $('downloadNpvt').addEventListener('click',()=>downloadText(VAULT_FILE_BASENAME + '.npvt',$('reverseOutput').value,'application/octet-stream'));
 $('downloadNpvtTxt').addEventListener('click',()=>downloadText(VAULT_FILE_BASENAME + '_profile_list.json',state.reverseProfileJson || '[]','application/json;charset=utf-8'));
+$('copyLinksJsonOutput').addEventListener('click',()=>copyText($('linksJsonOutput').value));
+$('downloadLinksJsonOutput').addEventListener('click',()=>downloadText('v2ray-json-configs-separated.txt',$('linksJsonOutput').value,'text/plain;charset=utf-8'));
 $('oneTokenPerLink').addEventListener('change',()=>{ if($('reverseInput').value.trim()) buildNpvt(); });
 $('includeVaultAbout').addEventListener('change',()=>{ if($('reverseInput').value.trim()) buildNpvt(); });
 $('brandV2RayRemarks').addEventListener('change',()=>renderForward());
-
+  $('jsonToLinks').addEventListener('click',jsonToLinksAction);
+  $('jsonToNpvt').addEventListener('click',jsonToNpvtAction);
+  $('copyJsonOutput').addEventListener('click',()=>copyText($('jsonOutput').value));
+  $('downloadJsonOutput').addEventListener('click',()=>{
+    const text = $('jsonOutput').value;
+    const isNpvt = /^NPVT1/i.test(text.trim());
+    downloadText(isNpvt ? 'json-converted-output.npvt' : 'json-converted-links.txt', text, isNpvt ? 'application/octet-stream' : 'text/plain;charset=utf-8');
+  });
+  $('clearJsonTools').addEventListener('click',()=>{$('jsonInput').value=''; renderJsonTool('', ['Ready.']);});
+  $('jsonOneTokenPerLink').addEventListener('change',()=>{ if($('jsonInput').value.trim() && /^NPVT1/i.test($('jsonOutput').value.trim())) jsonToNpvtAction(); });
+  
 $('clearTable').addEventListener('click',()=>{
   state.files = 0;
   state.links = [];
@@ -1742,6 +2026,8 @@ document.addEventListener('keydown',e=>{
       e.preventDefault();
       if(active && active.id === 'reverseInput') buildNpvt();
       else if(active && active.id === 'forwardInput') processForwardText();
+      else if(active && active.id === 'jsonInput') jsonToLinksAction();
+      else if(active && active.id === 'linksJsonInput') linksToJsonAction();
     }
   }
 });
