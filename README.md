@@ -1,5 +1,12 @@
 <div align="center">
 
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:020704,50:39ff88,100:00d46a&height=185&section=header&text=NPVT%20Terminal%20Converter&fontColor=d8ffe9&fontSize=38&fontAlignY=38&desc=Offline%20Local%20Single%20HTML%20%7C%20NPVT1%20%E2%86%94%20V2Ray%20%7C%20Xray%20JSON%20Toolkit&descAlignY=58&animation=fadeIn" alt="NPVT Terminal Converter animated header" />
+
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=20&duration=2800&pause=700&color=39FF88&center=true&vCenter=true&width=860&lines=NPVT1+containers+%E2%86%94+V2Ray+share+links;Xray+%2F+V2Ray+JSON+profile+toolkit;Offline+browser-only+converter;Local-first+privacy+with+zero+backend" alt="Animated terminal typing intro" />
+
+<br />
+<br />
+
 <img src="assets/Prev.png" alt="NPV Tunnel NPVT Converter technical preview" width="100%" />
 
 # NPV Tunnel NPVT Converter
@@ -85,6 +92,12 @@ flowchart LR
     J[Links / NPVT / TXT] --> K[Profile normalizer]
     K --> L[Separate JSON configs]
 ```
+
+<div align="center">
+
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=18&duration=2600&pause=600&color=39FF88&center=true&vCenter=true&width=820&lines=Drop+.npvt+or+paste+links;Parse+everything+locally;Normalize+protocols+and+transports;Build+clean+links+or+NPVT1+exports" alt="Animated workflow typing preview" />
+
+</div>
 
 The app now includes four main panels:
 
@@ -461,8 +474,28 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 
 ## Author
 
-Made by **Mahdi Gh**  
+Made by **THELOUISMAHDI**  
 GitHub: [TheLouisMahdi](https://github.com/TheLouisMahdi)
+
+<div align="center">
+
+<br />
+
+<a href="https://github.com/TheLouisMahdi">
+  <img src="https://img.shields.io/badge/THELOUISMAHDI-GitHub_Profile-39ff88?style=for-the-badge&logo=github&logoColor=020704" alt="THELOUISMAHDI GitHub Profile" />
+</a>
+
+<br />
+<br />
+
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=18&duration=2800&pause=800&color=39FF88&center=true&vCenter=true&width=760&lines=Built+for+offline+conversion;No+server.+No+upload.+No+tracking.;Made+by+THELOUISMAHDI" alt="Animated footer typing signature" />
+
+<br />
+<br />
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:020704,50:39ff88,100:00d46a&height=120&section=footer" alt="Animated footer wave" />
+
+</div>
 
 ---
 
