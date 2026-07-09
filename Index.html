@@ -228,7 +228,6 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
   <a class="bubble" href="#linksToNpvt" title="Links to NPVT">OUT</a>
   <a class="bubble" href="#jsonTools" title="JSON to links / NPVT">JS</a>
   <a class="bubble" href="#linksToJsonTools" title="V2Ray links / NPVT / TXT to JSON">LJ</a>
-  <a class="bubble" href="#sshExportTools" title="SSH export">SH</a>
   <a class="bubble" href="#resultsTable" title="Results table">TB</a>
   <a class="bubble" href="https://github.com/TheLouisMahdi" target="_blank" rel="noopener" title="GitHub">GH</a>
 </nav>
@@ -243,7 +242,6 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
         <a class="btn secondary" href="#linksToNpvt">Build NPVT</a>
         <a class="btn secondary" href="#jsonTools">JSON tools</a>
         <a class="btn secondary" href="#linksToJsonTools">Links → JSON</a>
-        <a class="btn secondary" href="#sshExportTools">SSH Export</a>
       </div>
     </div>
     <aside class="hero-panel" aria-label="Runtime overview">
@@ -256,7 +254,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
         </div>
       </div>
       <div class="protocol-strip" aria-label="Supported protocols">
-        <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">SSR</span><span class="chip">TUIC</span>
+        <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">HYSTERIA2</span><span class="chip">HY2</span><span class="chip">TUIC</span>
       </div>
       <div class="pipeline">
         <div class="node">Drop / Paste</div>
@@ -270,7 +268,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
     <div class="grid">
       <section class="panel" id="npvtToLinks">
         <h2>01 — NPVT1 / NPV JSON → V2Ray Links</h2>
-        <p>Import `.npvt`, `.json`, `.txt`, configuration files, or subscription exports. The converter scans everything locally, decrypts NPVT1 payloads, understands Napsternet/NPV-style `outbounds`, `streamSettings`, `vnext`, and `servers` JSON, then exports clean V2Ray-style links without changing connection-critical fields.</p>
+        <p>Import `.npvt`, `.json`, `.txt`, configuration files, or subscription exports. The converter scans everything locally, decrypts NPVT1 payloads, understands Napsternet/NPV-style `outbounds`, `streamSettings`, `vnext`, and `servers` JSON, then exports clean share links without changing connection-critical fields. Hysteria2/HY2 is exported as a normal hysteria2:// link, not JSON.</p>
         <div class="dropzone" id="dropForward" role="button" tabindex="0" aria-label="Choose or drop files for NPVT to links">
           <input id="fileForward" type="file" multiple accept=".npvt,.txt,.json,.conf,.yaml,.yml,*/*">
           <div class="drop-icon">&lt;/&gt;</div>
@@ -301,8 +299,6 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
             <button class="btn primary" type="button" id="copyLinks" disabled>Copy links</button>
             <button class="btn secondary" type="button" id="downloadLinks" disabled>Download TXT</button>
             <button class="btn secondary" type="button" id="downloadSub" disabled>Download subscription</button>
-            <button class="btn secondary" type="button" id="copyDetectedSsh" disabled>Copy SSH</button>
-            <button class="btn secondary" type="button" id="downloadDetectedSsh" disabled>Download SSH</button>
           </div>
         </div>
       </section>
@@ -354,13 +350,13 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
         </div>
         <div>
           <label class="input-label" for="jsonOutput">JSON conversion output</label>
-          <textarea id="jsonOutput" spellcheck="false" readonly placeholder="V2Ray links or NPVT1 output will appear here..."></textarea>
+          <textarea id="jsonOutput" spellcheck="false" readonly placeholder="Share links or NPVT1 output will appear here..."></textarea>
         </div>
       </div>
       <div class="action-row">
         <div class="switch-stack">
           <label class="switch"><input id="jsonOneTokenPerLink" type="checkbox"> one NPVT1 container per JSON profile</label>
-          <small class="hint-line">Use Links for short share URLs. Use NPVT for direct NPV Tunnel import. JSON parsing keeps WebSocket host, path, TLS SNI, ALPN, REALITY public key, shortId, spiderX, gRPC serviceName, and supported protocol credentials.</small>
+          <small class="hint-line">Use Links for short share URLs, including normal hysteria2:// links. Use NPVT for direct NPV Tunnel import. JSON parsing keeps WebSocket host, path, TLS SNI, ALPN, REALITY public key, shortId, spiderX, gRPC serviceName, and supported protocol credentials.</small>
         </div>
         <div class="controls">
           <button class="btn primary" type="button" id="jsonToLinks">JSON → Links</button>
@@ -421,52 +417,12 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
 
     </div>
 
-    <section class="panel" id="sshExportTools">
-      <h2>05 — NPVT / TXT / JSON → SSH Export</h2>
-      <p>SSH profiles are not V2Ray share links, so this panel exports them separately. Drop an NPV Tunnel <code>.npvt</code> file, TXT export, or JSON payload, then generate a readable SSH TXT export or a structured JSON export while preserving SSH host, port, username, password, HTTP proxy, SNI/TLS metadata, UDPGW options, DNS mode, and the full payload.</p>
-      <div class="dropzone" id="dropSshExport" role="button" tabindex="0" aria-label="Choose or drop files for SSH export">
-        <input id="fileSshExport" type="file" multiple accept=".npvt,.txt,.json,.conf,.yaml,.yml,*/*">
-        <div class="drop-icon">SSH</div>
-        <strong>Drop SSH NPVT / TXT / JSON here or tap to choose</strong>
-        <span>Output can be human-readable TXT blocks or a structured JSON array. V2Ray-only profiles are ignored here.</span>
-      </div>
-      <div class="actions">
-        <button class="file-btn primary" type="button" id="pickSshExport">Choose files</button>
-        <button class="btn" type="button" id="sshToTxt">SSH → TXT</button>
-        <button class="btn secondary" type="button" id="sshToJson">SSH → JSON</button>
-        <button class="btn bad" type="button" id="clearSshExportTools">Clear panel</button>
-      </div>
-      <div class="panes">
-        <div>
-          <label class="input-label" for="sshInput">Input SSH NPVT / TXT / JSON</label>
-          <textarea id="sshInput" spellcheck="false" placeholder="Paste NPVT1 content, NPV SSH JSON, or mixed text here..."></textarea>
-        </div>
-        <div>
-          <label class="input-label" for="sshOutput">SSH export output</label>
-          <textarea id="sshOutput" spellcheck="false" readonly placeholder="SSH TXT or JSON export will appear here..."></textarea>
-        </div>
-      </div>
-      <div class="action-row">
-        <div class="switch-stack">
-          <small class="hint-line">Generated SSH URI lines are convenience links only. The full NPV/SSH fields are preserved in the TXT and JSON blocks because payload/proxy-based SSH profiles do not have a universal V2Ray-style share-link format.</small>
-        </div>
-        <div class="controls">
-          <button class="btn primary" type="button" id="copySshOutput" disabled>Copy SSH export</button>
-          <button class="btn secondary" type="button" id="downloadSshOutput" disabled>Download SSH export</button>
-        </div>
-      </div>
-      <div>
-        <label class="input-label" for="sshLog">SSH export log</label>
-        <div class="log" id="sshLog">Ready.</div>
-      </div>
-    </section>
-
     <section class="panel" id="resultsTable">
       <div class="stats" aria-label="Conversion statistics">
         <div class="stat"><b id="statFiles">0</b><span>files processed</span></div>
         <div class="stat"><b id="statProfiles">0</b><span>profiles found</span></div>
         <div class="stat"><b id="statLinks">0</b><span>v2ray links</span></div>
-        <div class="stat"><b id="statSsh">0</b><span>ssh profiles</span></div>
+        <div class="stat"><b id="statSsh">0</b><span>ssh skipped</span></div>
         <div class="stat"><b id="statDecrypt">0</b><span>npvt blocks</span></div>
         <div class="stat"><b id="statErrors">0</b><span>warnings</span></div>
       </div>
@@ -665,7 +621,7 @@ function withBrandedVmessRemark(link){
 function brandV2RayLink(link){
   const proto = String(link || '').split('://')[0].toLowerCase();
   if (proto === 'vmess') return withBrandedVmessRemark(link);
-  if (['vless','trojan','ss','ssr','hysteria','hysteria2','tuic','wireguard'].includes(proto)) return withBrandedUrlFragment(link);
+  if (['vless','trojan','ss','ssr','hysteria','hysteria2','hy2','hysteria2+realm','hysteria2+realm+http','tuic','wireguard'].includes(proto)) return withBrandedUrlFragment(link);
   return link;
 }
 function displayNameFromLink(link){
@@ -834,6 +790,159 @@ function parseSsShare(link){
     fingerPrint: '',
     insecure: false
   };
+}
+
+function parseLooseShareUri(link){
+  const str = String(link || '').trim();
+  const m = str.match(/^([A-Za-z0-9+.-]+):\/\/(.*)$/);
+  if (!m) throw new Error('invalid URI');
+  const scheme = m[1].toLowerCase();
+  let rest = m[2];
+  let hash = '';
+  const hashIdx = rest.indexOf('#');
+  if (hashIdx >= 0) { hash = rest.slice(hashIdx + 1); rest = rest.slice(0, hashIdx); }
+  let query = '';
+  const qIdx = rest.indexOf('?');
+  if (qIdx >= 0) { query = rest.slice(qIdx + 1); rest = rest.slice(0, qIdx); }
+  let authority = rest;
+  const slashIdx = authority.indexOf('/');
+  if (slashIdx >= 0) authority = authority.slice(0, slashIdx);
+  let userinfo = '';
+  let hostport = authority;
+  const at = authority.lastIndexOf('@');
+  if (at >= 0) { userinfo = authority.slice(0, at); hostport = authority.slice(at + 1); }
+  let host = hostport;
+  let portSpec = '';
+  if (hostport.startsWith('[')) {
+    const close = hostport.indexOf(']');
+    if (close >= 0) {
+      host = hostport.slice(1, close);
+      const after = hostport.slice(close + 1);
+      if (after.startsWith(':')) portSpec = after.slice(1);
+    }
+  } else {
+    const colon = hostport.indexOf(':');
+    if (colon >= 0) { host = hostport.slice(0, colon); portSpec = hostport.slice(colon + 1); }
+  }
+  return {scheme, userinfo, host, portSpec, query: new URLSearchParams(query), hash};
+}
+function boolFromParams(q, names, def=false){
+  for (const name of names) {
+    if (q.has(name)) return truthyParam(q.get(name));
+  }
+  return def;
+}
+function qFirst(q, names, fallback=''){
+  for (const name of names) {
+    const v = q.get(name);
+    if (v !== null && v !== undefined && String(v) !== '') return safeDecodeURIComponent(v);
+  }
+  return fallback;
+}
+function parseHysteria2Share(link){
+  const u = parseLooseShareUri(link);
+  const name = cleanRemarkName(u.hash, 'Hysteria2');
+  const isRealm = String(u.scheme || '').toLowerCase().startsWith('hysteria2+realm');
+  const auth = isRealm ? qFirst(u.query, ['auth', 'password']) : safeDecodeURIComponent(u.userinfo || '');
+  const outbound = {
+    type: isRealm ? 'hysteria2+realm' : 'hysteria2',
+    tag: 'proxy',
+    server: u.host,
+    password: auth,
+    tls: {enabled: true}
+  };
+  const portSpec = String(u.portSpec || '').trim();
+  if (portSpec) {
+    if (/[,-]/.test(portSpec)) outbound.server_ports = portSpec.split(',').map(x => x.trim()).filter(Boolean);
+    else outbound.server_port = numberPort(portSpec);
+  } else {
+    outbound.server_port = 443;
+  }
+  const obfs = qFirst(u.query, ['obfs', 'obfs_type', 'obfsType']);
+  const obfsPass = qFirst(u.query, ['obfs-password', 'obfs_password', 'obfsPassword']);
+  if (obfs) outbound.obfs = {type: obfs};
+  if (obfsPass) {
+    if (!outbound.obfs) outbound.obfs = {type: 'salamander'};
+    outbound.obfs.password = obfsPass;
+  }
+  const sni = qFirst(u.query, ['sni', 'peer', 'serverName', 'server_name']);
+  if (sni) outbound.tls.server_name = sni;
+  if (u.query.has('insecure') || u.query.has('allowInsecure')) outbound.tls.insecure = boolFromParams(u.query, ['insecure','allowInsecure']);
+  const alpn = qFirst(u.query, ['alpn']);
+  if (alpn) outbound.tls.alpn = alpnList(alpn);
+  const network = qFirst(u.query, ['network']);
+  if (network) outbound.network = network;
+  const up = qFirst(u.query, ['upmbps','up_mbps','up']);
+  const down = qFirst(u.query, ['downmbps','down_mbps','down']);
+  if (up) outbound.up_mbps = parseInt(up, 10) || up;
+  if (down) outbound.down_mbps = parseInt(down, 10) || down;
+  return {name, protocol:'hysteria2', outbound};
+}
+function parseTuicShare(link){
+  const u = parseLooseShareUri(link);
+  const auth = safeDecodeURIComponent(u.userinfo || '');
+  const sep = auth.indexOf(':');
+  const uuid = sep >= 0 ? auth.slice(0, sep) : auth;
+  const password = sep >= 0 ? auth.slice(sep + 1) : '';
+  const name = cleanRemarkName(u.hash, 'TUIC');
+  const outbound = {
+    type: 'tuic',
+    tag: 'proxy',
+    server: u.host,
+    server_port: numberPort(u.portSpec || 443),
+    uuid,
+    password,
+    tls: {enabled: true}
+  };
+  const cc = qFirst(u.query, ['congestion_control','congestionControl','congestion','cc']);
+  if (cc) outbound.congestion_control = cc;
+  const relay = qFirst(u.query, ['udp_relay_mode','udpRelayMode','udp_relay','udp']);
+  if (relay) outbound.udp_relay_mode = relay;
+  if (u.query.has('udp_over_stream') || u.query.has('udpOverStream') || u.query.has('uot')) outbound.udp_over_stream = boolFromParams(u.query, ['udp_over_stream','udpOverStream','uot']);
+  if (u.query.has('zero_rtt_handshake') || u.query.has('zeroRttHandshake') || u.query.has('0rtt')) outbound.zero_rtt_handshake = boolFromParams(u.query, ['zero_rtt_handshake','zeroRttHandshake','0rtt']);
+  const heartbeat = qFirst(u.query, ['heartbeat']);
+  if (heartbeat) outbound.heartbeat = heartbeat;
+  const network = qFirst(u.query, ['network']);
+  if (network) outbound.network = network;
+  const sni = qFirst(u.query, ['sni','serverName','server_name']);
+  if (sni) outbound.tls.server_name = sni;
+  const alpn = qFirst(u.query, ['alpn']);
+  if (alpn) outbound.tls.alpn = alpnList(alpn);
+  if (u.query.has('allowInsecure') || u.query.has('insecure') || u.query.has('allow_insecure')) outbound.tls.insecure = boolFromParams(u.query, ['allowInsecure','allow_insecure','insecure']);
+  return {name, protocol:'tuic', outbound};
+}
+function buildSingBoxConfigFromOutbound(outbound, name='Proxy Config'){
+  const clean = JSON.parse(JSON.stringify(outbound || {}));
+  clean.tag = clean.tag || 'proxy';
+  return {
+    log: {level: 'warn'},
+    inbounds: [{
+      type: 'mixed',
+      tag: 'mixed-in',
+      listen: '127.0.0.1',
+      listen_port: 2080,
+      sniff: true,
+      set_system_proxy: false
+    }],
+    outbounds: [
+      clean,
+      {type: 'direct', tag: 'direct'},
+      {type: 'block', tag: 'block'}
+    ],
+    route: {auto_detect_interface: true},
+    experimental: {cache_file: {enabled: true}}
+  };
+}
+function linkItemToSingBoxJsonObject(item, index=0){
+  const link = String((item && item.link) || item || '').trim();
+  const proto = String(link.split('://')[0] || '').toLowerCase();
+  let parsed;
+  if (proto === 'hysteria2' || proto === 'hy2' || proto === 'hysteria') parsed = parseHysteria2Share(link);
+  else if (proto === 'tuic') parsed = parseTuicShare(link);
+  else throw new Error('not a sing-box URI');
+  const obj = buildSingBoxConfigFromOutbound(parsed.outbound, parsed.name || `Config ${index + 1}`);
+  obj.remarks = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
+  return obj;
 }
 function linkToNpvParsedProfile(link){
   const proto = String(link || '').split('://')[0].toLowerCase();
@@ -1134,7 +1243,7 @@ function extractRawLinks(text) {
   // Important: match only when the scheme starts at a real boundary.
   // Without the boundary, "wss://[host]/" inside Xray WebSocket headers can be
   // misread as a fake "ss://[host]/" Shadowsocks link.
-  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2?|tuic|wireguard):\/\/[^\s"'<>]+)/gi;
+  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|wireguard):\/\/[^\s"'<>]+)/gi;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const link = cleanExtractedUri(m[2]);
@@ -1272,7 +1381,7 @@ function streamSettingsToProfile(stream={}) {
 function outboundToProfiles(outbound, inheritedName='') {
   const profiles = [];
   if (!outbound || typeof outbound !== 'object') return profiles;
-  const protocol = String(outbound.protocol || '').toLowerCase();
+  const protocol = String(outbound.protocol || outbound.type || '').toLowerCase();
   if (!protocol) return profiles;
   const common = streamSettingsToProfile(outbound.streamSettings || {});
   const settings = outbound.settings || {};
@@ -1313,6 +1422,26 @@ function outboundToProfiles(outbound, inheritedName='') {
         password: firstValue(server.users && server.users[0] && server.users[0].pass, server.password, server.pass)
       });
     }
+  }
+
+  if (protocol === 'hysteria2' || protocol === 'hy2' || protocol === 'hysteria') {
+    const tls = outbound.tls || outbound.tlsSettings || {};
+    const obfs = outbound.obfs || {};
+    profiles.push({
+      protocol: 'hysteria2',
+      scheme: protocol === 'hy2' ? 'hy2' : 'hysteria2',
+      name: baseName,
+      server: firstValue(outbound.server, outbound.address, outbound.host),
+      serverPort: firstValue(outbound.server_port, outbound.serverPort, outbound.port),
+      server_ports: firstValue(outbound.server_ports, outbound.serverPorts, outbound.ports),
+      password: firstValue(outbound.password, outbound.auth, outbound.token),
+      obfs: firstValue(obfs.type, outbound.obfs_type, outbound.obfsType),
+      obfsPassword: firstValue(obfs.password, outbound.obfs_password, outbound.obfsPassword),
+      sni: firstValue(tls.server_name, tls.serverName, outbound.sni, outbound.peer),
+      insecure: firstValue(tls.insecure, outbound.insecure, outbound.allowInsecure),
+      pinSHA256: firstValue(tls.pinSHA256, tls.pin_sha256, outbound.pinSHA256, outbound.pin_sha256),
+      alpn: firstValue(tls.alpn, outbound.alpn)
+    });
   }
   return profiles;
 }
@@ -1461,6 +1590,7 @@ function detectProtocol(p) {
   if (proto.includes('trojan')) return 'trojan';
   if (proto.includes('shadow') || proto === 'ss') return 'ss';
   if (proto.includes('socks')) return 'socks';
+  if (proto.includes('hysteria') || proto === 'hy2') return 'hysteria2';
   if (p && typeof p.v2rayJson === 'string' && p.v2rayJson.trim()) {
     try {
       const embedded = JSON.parse(p.v2rayJson);
@@ -1470,6 +1600,7 @@ function detectProtocol(p) {
       if (obProto === 'trojan') return 'trojan';
       if (obProto === 'shadowsocks') return 'ss';
       if (obProto === 'socks') return 'socks';
+      if (obProto === 'hysteria2' || obProto === 'hy2' || obProto === 'hysteria') return 'hysteria2';
     } catch (_) {}
   }
   if (ctype === '5') return 'vless';
@@ -1484,11 +1615,53 @@ function detectProtocol(p) {
   if (n.security === 'reality' || n.flow || isUuid(n.id)) return 'vless';
   return 'vless';
 }
+
+function safeNested(obj, path){
+  try{
+    return path.split('.').reduce((acc, key) => acc && acc[key], obj);
+  }catch(_){ return undefined; }
+}
+function formatUriHost(host){
+  const h = String(host || '').trim().replace(/^\[|\]$/g, '');
+  return h.includes(':') && !h.startsWith('[') ? `[${h}]` : h;
+}
+function hysteriaPortSpec(value){
+  if (Array.isArray(value)) return value.map(x => String(x).trim()).filter(Boolean).join(',');
+  return String(value || '').trim();
+}
+function hysteria2ProfileToLink(p, fallbackName=''){
+  p = p || {};
+  const fromAddr = splitHostPort(p.address || p.serverAddress || '');
+  const host = firstValue(p.server, p.host, p.addressHost, p.address, fromAddr.host);
+  if (!host) throw new Error('missing Hysteria2 host');
+  const portSpec = hysteriaPortSpec(firstValue(p.server_ports, p.serverPorts, p.serverPortRange, p.ports, p.serverPort, p.port, fromAddr.port, ''));
+  const auth = firstValue(p.auth, p.password, p.pass, p.id, p.uuid, p.userId, '');
+  const name = cleanRemarkName(firstValue(p.remarks, p.ps, p.name, p.tag, fallbackName, 'Hysteria2'), 'Hysteria2');
+  const tls = p.tls && typeof p.tls === 'object' ? p.tls : {};
+  const obfsObj = p.obfs && typeof p.obfs === 'object' ? p.obfs : {};
+  const q = [];
+  addParam(q, 'obfs', firstValue(obfsObj.type, p.obfs, p.obfs_type, p.obfsType));
+  addParam(q, 'obfs-password', firstValue(obfsObj.password, p.obfsPassword, p.obfs_password));
+  addParam(q, 'sni', firstValue(tls.server_name, tls.serverName, p.sni, p.serverName, p.peer));
+  if (firstValue(tls.insecure, p.insecure, p.allowInsecure) !== '') addParam(q, 'insecure', truthyParam(firstValue(tls.insecure, p.insecure, p.allowInsecure)) ? '1' : '0');
+  addParam(q, 'pinSHA256', firstValue(tls.pinSHA256, tls.pin_sha256, p.pinSHA256, p.pin_sha256));
+  const alpn = firstValue(tls.alpn, p.alpn);
+  if (alpn) addParam(q, 'alpn', Array.isArray(alpn) ? alpn.join(',') : alpn);
+  const scheme = String(firstValue(p.scheme, p.protocol, p.type)).toLowerCase().includes('hy2') ? 'hy2' : 'hysteria2';
+  const authPart = auth ? `${enc(auth)}@` : '';
+  const portPart = portSpec ? `:${portSpec}` : '';
+  const queryPart = q.length ? `?${q.join('&')}` : '';
+  return `${scheme}://${authPart}${formatUriHost(host)}${portPart}/${queryPart}#${enc(name)}`;
+}
+
 function profileToLink(p, fallbackName='') {
   const n = normalizedProfile(p, fallbackName);
   if (!n.host || !n.port) throw new Error('missing host/port');
   const protocol = detectProtocol(p);
   const tag = enc(n.name);
+  if (protocol === 'hysteria2') {
+    return hysteria2ProfileToLink(p, fallbackName);
+  }
   if (protocol === 'vless') {
     if (!n.id) throw new Error('missing UUID/password');
     const q = [];
@@ -1747,8 +1920,6 @@ function renderForward(){
   $('copyLinks').disabled = !state.links.length;
   $('downloadLinks').disabled = !state.links.length;
   $('downloadSub').disabled = !state.links.length;
-  $('copyDetectedSsh').disabled = !(state.sshProfiles && state.sshProfiles.length);
-  $('downloadDetectedSsh').disabled = !(state.sshProfiles && state.sshProfiles.length);
   const tbody=$('rows');
   if(!state.links.length){
     tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#80a990">No links yet.</td></tr>';
@@ -1756,9 +1927,9 @@ function renderForward(){
     tbody.innerHTML=brandedLinks.map((x,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(x.protocol||'')}</td><td>${escapeHtml(x.name||'')}</td><td>${escapeHtml(x.source||'')}</td><td class="link-cell" title="${escapeHtml(x.link)}">${escapeHtml(x.link)}</td></tr>`).join('');
   }
   const sshCount = state.sshProfiles ? state.sshProfiles.length : 0;
-  const lines = [`Files: ${state.files} | Total profiles: ${state.profileTotal} | V2Ray links: ${state.links.length} | SSH profiles: ${sshCount} | NPVT blocks: ${state.decrypted} | Warnings: ${state.errors.length}`];
-  if(sshCount) lines.push('SSH profiles are not V2Ray share links. Use Copy SSH / Download SSH or the dedicated SSH Export panel.');
-  if(state.errors.length) lines.push('', ...state.errors.slice(0,80));
+  const lines = [`V2Ray exported: ${state.links.length} | SSH skipped: ${sshCount} | NPVT blocks: ${state.decrypted} | Warnings: ${state.errors.length}`];
+  if(sshCount) lines.push('SSH profiles are not converted in this version. They may be added later.');
+  if(state.errors.length) lines.push('', ...state.errors.slice(0,20));
   setLog('forwardLog', lines);
 }
 function renderReverse(){
@@ -1821,8 +1992,8 @@ async function processForwardFiles(files){
         if(!seenSsh.has(key)){seenSsh.add(key); state.sshProfiles.push(p);}
       }
       for(const e of res.errors) state.errors.push(`${file.name}: ${e}`);
-      for(const e of sshRes.errors) state.errors.push(`${file.name} SSH: ${e}`);
-      if(!res.links.length && !sshRes.profiles.length) state.errors.push(`${file.name}: no convertible V2Ray or SSH profiles were found`);
+      for(const e of sshRes.errors) state.errors.push(`${file.name} SSH detection: ${e}`);
+      if(!res.links.length && !sshRes.profiles.length) state.errors.push(`${file.name}: no supported V2Ray profiles were found`);
     }catch(e){ state.errors.push(`${file.name}: ${e.message || e}`); }
   }
   renderForward(); toast('Forward conversion complete.');
@@ -1835,14 +2006,30 @@ function processForwardText(){
   const sshRes=collectSshProfilesFromText(text,'pasted input',forceNPVT);
   state.links=res.links; state.sshProfiles=sshRes.profiles; state.decrypted=Math.max(res.decrypted.length, sshRes.decrypted.length); state.errors=[...res.errors, ...sshRes.errors.map(e => 'SSH: ' + e)];
   state.profileTotal = state.links.length + state.sshProfiles.length;
-  if(!state.links.length && !state.sshProfiles.length) state.errors.push('No convertible V2Ray or SSH profiles were found in pasted input.');
+  if(!state.links.length && !state.sshProfiles.length) state.errors.push('No supported V2Ray profiles were found in pasted input.');
   renderForward(); toast('Text converted.');
 }
+
+function isNpvtBuildSupportedLink(link){
+  const proto = String(link || '').split('://')[0].toLowerCase();
+  return ['vless','vmess','trojan','ss','shadowsocks','socks'].includes(proto);
+}
+
 function buildReverseFromText(text, source='reverse input'){
   const res = collectLinksFromText(text, source, false);
-  let links = uniqueLinkObjects(res.links);
+  const allLinks = uniqueLinkObjects(res.links);
   const errors = [...res.errors];
-  if(!links.length) errors.push('No supported links were found for NPVT generation.');
+  const links = [];
+  const skipped = [];
+  for (const item of allLinks) {
+    if (isNpvtBuildSupportedLink(item.link)) links.push(item);
+    else skipped.push(item);
+  }
+  if (skipped.length) {
+    const labels = skipped.map(x => String(x.protocol || (x.link || '').split('://')[0] || 'unknown').toUpperCase()).filter(Boolean);
+    errors.push(`Skipped ${skipped.length} non-NPVT protocol link(s): ${[...new Set(labels)].join(', ')}. Use Links → JSON for Hysteria2/TUIC/sing-box JSON export.`);
+  }
+  if(!links.length) errors.push('No supported V2Ray/NPVT links were found for NPVT generation.');
   return {links, errors};
 }
 function buildNpvt(){
@@ -1938,6 +2125,8 @@ function jsonToNpvtAction(){
 function linkItemToStandaloneJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   if (!link) throw new Error('empty link');
+  const proto = String(link.split('://')[0] || '').toLowerCase();
+  if (['hysteria2','hy2','hysteria','tuic'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
@@ -1972,11 +2161,11 @@ function normalizeJsonConfigName(name){
 }
 function isSupportedJsonOutboundProtocol(proto){
   proto = String(proto || '').toLowerCase();
-  return ['vless','vmess','trojan','shadowsocks','ss','socks'].includes(proto);
+  return ['vless','vmess','trojan','shadowsocks','ss','socks','hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','ssh'].includes(proto);
 }
 function jsonConfigSupportedOutbounds(obj){
   if (!obj || typeof obj !== 'object' || !Array.isArray(obj.outbounds)) return [];
-  return obj.outbounds.filter(o => o && typeof o === 'object' && isSupportedJsonOutboundProtocol(o.protocol));
+  return obj.outbounds.filter(o => o && typeof o === 'object' && isSupportedJsonOutboundProtocol(o.protocol || o.type));
 }
 function cloneJsonConfig(obj, name=''){
   const cloned = JSON.parse(JSON.stringify(obj || {}));
@@ -2028,7 +2217,7 @@ function cleanupOutboundForPaste(out){
 }
 function makePasteReadyXrayConfig(obj){
   const src = JSON.parse(JSON.stringify(obj || {}));
-  const allowedTop = new Set(['log','api','dns','routing','policy','inbounds','outbounds','transport','stats','reverse','fakedns','metrics','observatory','burstObservatory']);
+  const allowedTop = new Set(['log','api','dns','routing','policy','inbounds','outbounds','transport','stats','reverse','fakedns','metrics','observatory','burstObservatory','route','experimental']);
   const clean = {};
   for (const key of Object.keys(src)) {
     if (allowedTop.has(key)) clean[key] = src[key];
@@ -2271,7 +2460,7 @@ function linksToJsonAction(){
   const res = linksTextToSeparatedJson(text, 'links json input', /NPVT1/i.test(text));
   const lines = [
     `Input links found: ${res.links.length} | Full JSON preserved: ${res.fullJson || 0} | Link-derived JSON: ${res.linkDerived || 0} | JSON configs: ${res.blocks.length} | NPVT blocks: ${res.decrypted} | Warnings: ${res.errors.length}`,
-    'Mode: V2Ray links / NPVT / TXT → separate standalone Xray JSON configs',
+    'Mode: V2Ray links / NPVT / TXT → separate JSON configs. Hysteria2/TUIC links can be exported as sing-box-style JSON here; JSON → Links exports Hysteria2 as normal hysteria2:// links.',
     'If an NPVT profile contains full v2rayJson, it is exported as-is to preserve fragment/noise/dialerProxy settings that compact share links cannot carry.',
     'Output format: paste-ready single JSON by default. Disable paste-ready mode to export all JSON blocks as separated TXT.'
   ];
@@ -2459,6 +2648,29 @@ function sshProfileTxtBlock(profile, index=0){
   lines.push(JSON.stringify(profile, null, 2));
   return lines.join('\n');
 }
+function sshProfileToSingBoxOutbound(profile){
+  const c = profile.sshConfig || {};
+  return {
+    type: 'ssh',
+    tag: 'proxy',
+    server: c.sshHost || '',
+    server_port: numberPort(c.sshPort || 22),
+    user: c.sshUsername || 'root',
+    password: c.sshPassword || ''
+  };
+}
+function sshProfileToSingBoxJson(profile, index=0){
+  const c = profile.sshConfig || {};
+  const name = cleanRemarkName(profile.name || c.remarks || `SSH ${index + 1}`, `SSH ${index + 1}`);
+  const obj = buildSingBoxConfigFromOutbound(sshProfileToSingBoxOutbound(profile), name);
+  obj.remarks = name;
+  obj._npv_note = 'Direct sing-box SSH outbound only. NPV payload, HTTP proxy, DNS-TT, UDPGW and custom mobile tunneling fields cannot be represented in standard sing-box SSH outbound and are preserved only in the NPV SSH JSON/TXT backup.';
+  obj._npv_preserved_ssh = profile;
+  return obj;
+}
+function sshProfilesToSingBoxJsonText(profiles){
+  return (profiles || []).map((p,i) => JSON.stringify(sshProfileToSingBoxJson(p,i), null, 2)).join('\n\n');
+}
 function sshProfilesToTxt(profiles){
   return (profiles || []).map((p,i) => sshProfileTxtBlock(p,i)).join('\n\n');
 }
@@ -2498,88 +2710,8 @@ function collectSshProfilesFromText(text, sourceName='', forceNPVT=false){
   });
   return result;
 }
-let sshExportDownloadName = 'ssh-export.txt';
-function renderSshExportTool(output='', lines=['Ready.']){
-  $('sshOutput').value = output || '';
-  $('copySshOutput').disabled = !output;
-  $('downloadSshOutput').disabled = !output;
-  setLog('sshLog', lines);
-}
-function sshExportFromCurrentInput(mode='txt'){
-  const text = $('sshInput').value || '';
-  const res = collectSshProfilesFromText(text, 'ssh export input', /NPVT1/i.test(text));
-  let output = '';
-  if (mode === 'json') {
-    output = res.profiles.length ? JSON.stringify(res.profiles, null, 2) : '';
-    sshExportDownloadName = 'ssh-profiles-export.json';
-  } else {
-    output = sshProfilesToTxt(res.profiles);
-    sshExportDownloadName = 'ssh-profiles-export.txt';
-  }
-  const lines = [
-    `SSH profiles: ${res.profiles.length} | NPVT blocks: ${res.decrypted.length} | Warnings: ${res.errors.length}`,
-    `Mode: NPVT / TXT / JSON → SSH ${mode.toUpperCase()} export`,
-    mode === 'txt' ? 'Output format: readable blocks with URI + preserved JSON.' : 'Output format: structured JSON array with preserved sshConfig fields.'
-  ];
-  if (!String(text).trim()) lines.push('Input is empty.');
-  if (res.errors.length) lines.push('', ...res.errors.slice(0,80));
-  if (String(text).trim() && !res.profiles.length && !res.errors.length) lines.push('No SSH profiles found. V2Ray-only profiles are ignored in this panel.');
-  renderSshExportTool(output, lines);
-  toast(res.profiles.length ? 'SSH export generated.' : 'No SSH profiles found.');
-}
-async function processSshExportFiles(files){
-  if(!files || !files.length) return;
-  const allProfiles = [];
-  const errors = [];
-  let decrypted = 0;
-  let processed = 0;
-  const inputParts = [];
-  const seen = new Set();
-  for (const file of files) {
-    processed++;
-    try {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      const text = bytesToText(bytes);
-      inputParts.push(`\n\n----- ${file.name} -----\n${text}`);
-      const forceNPVT = file.name.toLowerCase().endsWith('.npvt') || /NPVT1/i.test(text);
-      const res = collectSshProfilesFromText(text, file.name, forceNPVT);
-      if(forceNPVT && !res.decrypted.length && bytes.length > 16 && !/NPVT1/i.test(text)){
-        try{
-          const plain = bytesToText(decryptNPVTBytes(bytes)).replace(/\0+$/g, '').trim();
-          if(plain){
-            res.decrypted.push({index:'binary', text:plain});
-            absorbSshPlaintext(res, plain, file.name, 'binary NPVT');
-          }
-        }catch(e){
-          res.errors.push(`binary NPVT fallback: ${e.message}`);
-        }
-      }
-      decrypted += res.decrypted.length;
-      for (const profile of res.profiles) {
-        const c = profile.sshConfig || {};
-        const key = [profile.name,c.sshHost,c.sshPort,c.sshUsername,c.sshPassword,c.httpProxy,c.payload].join('\u0001');
-        if(!seen.has(key)){ seen.add(key); allProfiles.push(profile); }
-      }
-      for (const e of res.errors) errors.push(`${file.name}: ${e}`);
-      if(!res.profiles.length) errors.push(`${file.name}: no SSH profiles were found`);
-    } catch(e) {
-      errors.push(`${file.name}: ${e.message || e}`);
-    }
-  }
-  $('sshInput').value = inputParts.join('\n').trim();
-  const output = sshProfilesToTxt(allProfiles);
-  sshExportDownloadName = 'ssh-profiles-export.txt';
-  const lines = [
-    `Files: ${processed} | SSH profiles: ${allProfiles.length} | NPVT blocks: ${decrypted} | Warnings: ${errors.length}`,
-    'Mode: files / NPVT / TXT / JSON → SSH TXT export',
-    'V2Ray profiles are ignored here and remain available in the V2Ray panels.'
-  ];
-  if(errors.length) lines.push('', ...errors.slice(0,80));
-  renderSshExportTool(output, lines);
-  toast(allProfiles.length ? 'SSH profiles exported.' : 'No SSH profiles found.');
-}
 
+/* SSH export UI is intentionally disabled in this version. SSH detection remains only for skipped-profile logging. */
 function wireDrop(zoneId, fileId, handler){
   const zone=$(zoneId); const input=$(fileId);
   zone.addEventListener('click', e => {
@@ -2602,25 +2734,18 @@ $('bubbleToggle').addEventListener('click',()=>$('bubbleNav').classList.toggle('
 $('pickForward').addEventListener('click',()=>$('fileForward').click());
 $('pickReverse').addEventListener('click',()=>$('fileReverse').click());
 $('pickLinksJson').addEventListener('click',()=>$('fileLinksJson').click());
-$('pickSshExport').addEventListener('click',()=>$('fileSshExport').click());
 wireDrop('dropForward','fileForward',processForwardFiles);
 wireDrop('dropReverse','fileReverse',processReverseFiles);
 wireDrop('dropLinksJson','fileLinksJson',processLinksJsonFiles);
-wireDrop('dropSshExport','fileSshExport',processSshExportFiles);
 $('convertForward').addEventListener('click',processForwardText);
 $('buildReverse').addEventListener('click',buildNpvt);
 $('linksToJson').addEventListener('click',linksToJsonAction);
-$('sshToTxt').addEventListener('click',()=>sshExportFromCurrentInput('txt'));
-$('sshToJson').addEventListener('click',()=>sshExportFromCurrentInput('json'));
 $('clearForward').addEventListener('click',()=>{state.files=0;state.links=[];state.sshProfiles=[];state.profileTotal=0;state.decrypted=0;state.errors=[];$('forwardInput').value='';$('forwardOutput').value='';$('fileForward').value='';renderForward();setLog('forwardLog','Ready.');});
 $('clearReverse').addEventListener('click',()=>{state.reverseLinks=[];state.reverseErrors=[];state.npvtText='';state.reverseProfileJson='[]';state.reverseSubscription='';$('reverseInput').value='';$('reverseOutput').value='';$('fileReverse').value='';renderReverse();setLog('reverseLog','Ready.');});
 $('clearLinksJsonTools').addEventListener('click',()=>{$('linksJsonInput').value=''; $('linksJsonOutput').value=''; $('fileLinksJson').value=''; renderLinksJsonTool('', ['Ready.']);});
-$('clearSshExportTools').addEventListener('click',()=>{$('sshInput').value=''; $('sshOutput').value=''; $('fileSshExport').value=''; sshExportDownloadName='ssh-export.txt'; renderSshExportTool('', ['Ready.']);});
 $('copyLinks').addEventListener('click',()=>copyText($('forwardOutput').value));
 $('downloadLinks').addEventListener('click',()=>downloadText('v2ray_links_thelouis_mahdi.txt',$('forwardOutput').value));
 $('downloadSub').addEventListener('click',()=>downloadText('v2ray_subscription_thelouis_mahdi_base64.txt',base64Utf8($('forwardOutput').value)));
-$('copyDetectedSsh').addEventListener('click',()=>copyText(sshProfilesToTxt(state.sshProfiles || [])));
-$('downloadDetectedSsh').addEventListener('click',()=>downloadText('ssh_profiles_thelouis_mahdi.txt',sshProfilesToTxt(state.sshProfiles || [])));
 $('copyNpvt').addEventListener('click',()=>copyText($('reverseOutput').value));
 $('downloadNpvt').addEventListener('click',()=>downloadText(VAULT_FILE_BASENAME + '.npvt',$('reverseOutput').value,'application/octet-stream'));
 $('downloadNpvtTxt').addEventListener('click',()=>downloadText(VAULT_FILE_BASENAME + '_profile_list.json',state.reverseProfileJson || '[]','application/json;charset=utf-8'));
@@ -2633,8 +2758,6 @@ $('downloadLinksJsonOutput').addEventListener('click',()=>{
 });
 $('linksJsonPasteSafe').addEventListener('change',rebuildLinksJsonOutput);
 $('linksJsonSelect').addEventListener('change',()=>{linksJsonState.selectedIndex = Number($('linksJsonSelect').value || 0); rebuildLinksJsonOutput();});
-$('copySshOutput').addEventListener('click',()=>copyText($('sshOutput').value));
-$('downloadSshOutput').addEventListener('click',()=>downloadText(sshExportDownloadName,$('sshOutput').value,sshExportDownloadName.endsWith('.json')?'application/json;charset=utf-8':'text/plain;charset=utf-8'));
 $('oneTokenPerLink').addEventListener('change',()=>{ if($('reverseInput').value.trim()) buildNpvt(); });
 $('includeVaultAbout').addEventListener('change',()=>{ if($('reverseInput').value.trim()) buildNpvt(); });
 $('brandV2RayRemarks').addEventListener('change',()=>renderForward());
@@ -2672,7 +2795,6 @@ document.addEventListener('keydown',e=>{
       else if(active && active.id === 'forwardInput') processForwardText();
       else if(active && active.id === 'jsonInput') jsonToLinksAction();
       else if(active && active.id === 'linksJsonInput') linksToJsonAction();
-      else if(active && active.id === 'sshInput') sshExportFromCurrentInput('txt');
     }
   }
 });
