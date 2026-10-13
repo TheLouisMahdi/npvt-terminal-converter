@@ -1061,7 +1061,7 @@ function linkItemToSingBoxJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   const proto = String(link.split('://')[0] || '').toLowerCase();
   let parsed;
-  if (proto === 'hysteria2' || proto === 'hy2' || proto === 'hysteria') parsed = parseHysteria2Share(link);
+  if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http'].includes(proto)) parsed = parseHysteria2Share(link);
   else if (proto === 'tuic') parsed = parseTuicShare(link);
   else if (proto === 'anytls') parsed = parseAnytlsShare(link);
   else throw new Error('not a sing-box URI');
@@ -2359,7 +2359,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   if (!link) throw new Error('empty link');
   const proto = String(link.split('://')[0] || '').toLowerCase();
-  if (['hysteria2','hy2','hysteria','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
+  if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
