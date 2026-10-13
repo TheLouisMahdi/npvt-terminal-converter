@@ -1982,6 +1982,18 @@ function convertJSONToLinks(obj, sourceName='') {
   const links = [];
   const errors = [];
   const profiles = flattenJSONProfiles(obj);
+  const supported = new Set(['vless','vmess','trojan','shadowsocks','ss','socks','hysteria2','hy2','hysteria','tuic','anytls']);
+  const configs = Array.isArray(obj) ? obj : [obj];
+  for (const config of configs) {
+    if (!config || !Array.isArray(config.outbounds)) continue;
+    for (const outbound of config.outbounds) {
+      if (!outbound || !outbound.server || !outbound.server_port) continue;
+      const type = String(outbound.type || outbound.protocol || '').toLowerCase();
+      if (type && !supported.has(type)) {
+        errors.push(`Unsupported native protocol ${type}; keep the original JSON, no safe share URI mapping`);
+      }
+    }
+  }
 
   // Prefer structural JSON conversion when real Xray/NPV profiles exist.
   // Some full configs contain WebSocket strings like wss://[host]/ or routing URLs;
