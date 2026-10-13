@@ -1,0 +1,29 @@
+name: Native Mihomo config validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-mihomo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/export_mihomo_fixture_configs.cjs
+      - name: Validate Snell TrustTunnel ShadowQUIC Mieru AWG with Mihomo 1.19.32
+        run: |
+          image="docker.io/metacubex/mihomo:v1.19.32"
+          docker pull "$image"
+          for file in tests/generated-mihomo/*.yaml; do
+            echo "Checking $file"
+            docker run --rm --network none -v "$PWD/tests/generated-mihomo:/checks:ro" "$image" -t -f "/checks/${file##*/}"
+          done
