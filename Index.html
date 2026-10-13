@@ -246,6 +246,31 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   .actions,.controls{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}
 }
+
+/* Universal workspace: only one visible upload and one output. Legacy elements
+   remain mounted for stable parser/runtime compatibility, not user interaction. */
+.workflow-nav,.terminal-card,.json-grid,#resultsTable{display:none!important}
+.smart-workspace{margin:0 0 22px;padding:22px;border-radius:22px;background:rgba(2,15,8,.83)}
+.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.smart-head h2{font-size:22px;margin:0 0 5px}
+.smart-head p{font-size:13px;line-height:1.5;color:var(--muted);margin:0}
+.smart-status-indicator{font:700 10px var(--mono);letter-spacing:.06em;color:var(--green);border:1px solid var(--line2);padding:7px 10px;border-radius:100px}
+.smart-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.smart-input,.smart-result{min-width:0;display:flex;flex-direction:column;gap:10px}
+.smart-drop{border:1px dashed var(--line2);border-radius:17px;padding:23px 15px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:rgba(57,255,136,.035);text-align:center}
+.smart-drop strong{color:var(--green3);font:700 14px var(--mono)}
+.smart-drop span{color:var(--muted);font:11px var(--mono)}
+.smart-drop:hover,.smart-drop:focus-visible,.smart-drop.over{border-color:var(--green);background:rgba(57,255,136,.10);outline:none}
+.smart-workspace textarea{min-height:270px;flex:1;border-radius:15px}
+.smart-result select{background:#06150b;color:var(--green3);border:1px solid var(--line2);padding:13px;border-radius:12px;min-height:46px;font:12px var(--mono);max-width:100%}
+.smart-result select:disabled{opacity:.5}
+.smart-detected{border:1px solid var(--line);background:rgba(0,0,0,.24);border-radius:13px;padding:10px;color:var(--muted);font:12px/1.6 var(--mono);min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}
+.smart-buttons{display:flex;flex-wrap:wrap;gap:9px}
+.smart-buttons .btn{flex:1 1 auto;justify-content:center}
+#smartStatus{max-height:150px;overflow-y:auto}
+@media(max-width:860px){.smart-columns{grid-template-columns:1fr}.smart-workspace textarea{min-height:185px}.smart-workspace{padding:14px}}
+@media(max-width:500px){.hero-panel{display:none}.smart-head h2{font-size:19px}.smart-status-indicator{font-size:9px}.smart-buttons .btn{min-width:0}}
+
 </style>
 </head>
 <body>
@@ -254,13 +279,11 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   <section class="hero">
     <div class="hero-copy">
       <div class="kicker">privacy-first / single-file / terminal converter</div>
-      <h1>NPV Tunnel NPVT Converter<span class="caret">_</span></h1>
-      <p>Convert NPVT1, proxy links, Xray/sing-box JSON and Mihomo YAML locally. Use the workflow below for NPVT imports, share links or native configurations. Unsupported mappings are reported instead of silently dropping fields.</p>
+      <h1>Smart Config Converter<span class="caret">_</span></h1>
+      <p>One input for many proxy formats. The converter detects each source and offers only supported exports. Encrypted formats without available keys are identified, not guessed.</p>
       <div class="hero-actions">
-        <a class="btn primary" href="#npvtToLinks">Start conversion</a>
-        <a class="btn secondary" href="#linksToNpvt">Build NPVT</a>
-        <a class="btn secondary" href="#jsonTools">JSON tools</a>
-        <a class="btn secondary" href="#nativeTools">Native formats</a>
+        <a class="btn primary" href="#smartWorkspace">Start conversion</a>
+        
       </div>
     </div>
     <aside class="hero-panel" aria-label="Runtime overview">
@@ -288,6 +311,36 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
         <div class="node">Extract / Encrypt</div>
       </div>
     </aside>
+  </section>
+
+  <section id="smartWorkspace" class="panel smart-workspace">
+    <div class="smart-head">
+      <div><h2>Universal converter</h2><p>Import once. Detected formats determine the available exports. Runs locally.</p></div>
+      <span class="smart-status-indicator">OFFLINE</span>
+    </div>
+    <div class="smart-columns">
+      <div class="smart-input">
+        <label class="input-label" for="smartInput">Input · paste configs or load files</label>
+        <div id="smartDrop" class="smart-drop" role="button" tabindex="0" aria-label="Select files or drop configurations">
+          <strong>Choose / drop files</strong>
+          <span>Multiple files · NPVT, NPVS, NM, JSON, YAML, INI, TXT, subscriptions</span>
+        </div>
+        <input type="file" id="smartFiles" multiple accept=".npvt,.npvs,.nm,.json,.yaml,.yml,.ini,.conf,.txt,.base64,*/*" hidden>
+        <textarea id="smartInput" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
+        <div id="smartDetected" class="smart-detected" aria-live="polite">No input yet</div>
+      </div>
+      <div class="smart-result">
+        <label class="input-label" for="smartTarget">Output format · compatible options only</label>
+        <select id="smartTarget" disabled aria-label="Compatible output format"><option value="">Detect input first</option></select>
+        <textarea id="smartOutput" readonly spellcheck="false" placeholder="After detection choose an available output format."></textarea>
+        <div class="smart-buttons">
+          <button class="btn primary" type="button" id="smartDownload" disabled>Download</button>
+          <button class="btn secondary" type="button" id="smartCopy" disabled>Copy</button>
+          <button class="btn bad" type="button" id="smartReset">Clear</button>
+        </div>
+        <div class="log" role="status" aria-live="polite" id="smartStatus">Ready. Nothing is sent to a server.</div>
+      </div>
+    </div>
   </section>
   <nav class="workflow-nav" aria-label="Conversion tools">
     <a href="#npvtToLinks"><span>01</span> NPVT → Links</a>
