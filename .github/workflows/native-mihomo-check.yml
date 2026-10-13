@@ -21,7 +21,7 @@ jobs:
       - run: node tools/export_mihomo_fixture_configs.cjs
       - name: Validate Snell TrustTunnel ShadowQUIC Mieru AWG with Mihomo 1.19.32
         run: |
-          image="docker.io/metacubex/mihomo:v1.19.32"
+          image="docker.io/metacubex/mihomo:v1.19.32@sha256:bac1a74de365ea59270ba134016762c6be05654d55246518de256113bd1c225e"
           docker pull "$image"
           for file in tests/generated-mihomo/*.yaml; do
             echo "Checking $file"
