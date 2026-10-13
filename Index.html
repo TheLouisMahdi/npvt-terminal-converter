@@ -254,7 +254,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
         </div>
       </div>
       <div class="protocol-strip" aria-label="Supported protocols">
-        <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">HYSTERIA2</span><span class="chip">HY2</span><span class="chip">TUIC</span>
+        <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">HYSTERIA2</span><span class="chip">HY2</span><span class="chip">TUIC</span><span class="chip">ANYTLS</span>
       </div>
       <div class="pipeline">
         <div class="node">Drop / Paste</div>
@@ -346,7 +346,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       <div class="panes">
         <div>
           <label class="input-label" for="jsonInput">JSON input</label>
-          <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON here: {"outbounds":[...]}, [{"v2rayProfile":{...}}], or a full Xray config...'></textarea>
+          <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON here: {"outbounds":[...]}, [{"v2rayProfile":{...}}], or a full Xray / sing-box config...'></textarea>
         </div>
         <div>
           <label class="input-label" for="jsonOutput">JSON conversion output</label>
@@ -356,7 +356,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       <div class="action-row">
         <div class="switch-stack">
           <label class="switch"><input id="jsonOneTokenPerLink" type="checkbox"> one NPVT1 container per JSON profile</label>
-          <small class="hint-line">Use Links for short share URLs, including normal hysteria2:// links. Use NPVT for direct NPV Tunnel import. JSON parsing keeps WebSocket host, path, TLS SNI, ALPN, REALITY public key, shortId, spiderX, gRPC serviceName, and supported protocol credentials.</small>
+          <small class="hint-line">Use Links for short share URLs, including normal hysteria2:// links. NPVT supports only the validated NPV protocols; other protocols are skipped with a warning. JSON parsing keeps WebSocket host, path, TLS SNI, ALPN, REALITY public key, shortId, spiderX, gRPC serviceName, and supported protocol credentials.</small>
         </div>
         <div class="controls">
           <button class="btn primary" type="button" id="jsonToLinks">JSON → Links</button>
@@ -374,7 +374,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
 
     <section class="panel" id="linksToJsonTools">
       <h2>04 — Links / NPVT / TXT → Separate JSON Configs</h2>
-      <p>Paste one V2Ray link, multiple links, a Base64 subscription, an NPVT1 file, or a text file containing any of them. This reverse JSON tool extracts every supported config and exports one clean Xray/V2Ray JSON object per config. When an NPVT profile already contains full v2rayJson, that full JSON is preserved instead of rebuilding a shorter link-derived config, so fragment/noise/dialerProxy settings are not lost. The TXT output keeps an empty line between JSON blocks so they stay visually separated.</p>
+      <p>Paste one V2Ray link, multiple links, a Base64 subscription, an NPVT1 file, or a text file containing any of them. This reverse JSON tool extracts supported configs and exports native Xray or sing-box JSON depending on the protocol. When an NPVT profile already contains full v2rayJson, that full JSON is preserved instead of rebuilding a shorter link-derived config, so fragment/noise/dialerProxy settings are not lost. The TXT output keeps an empty line between JSON blocks so they stay visually separated.</p>
       <div class="dropzone" id="dropLinksJson" role="button" tabindex="0" aria-label="Choose or drop files for links to separated JSON configs">
         <input id="fileLinksJson" type="file" multiple accept=".npvt,.txt,.json,.conf,.yaml,.yml,*/*">
         <div class="drop-icon">[ ]</div>
@@ -389,7 +389,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       <div class="panes">
         <div>
           <label class="input-label" for="linksJsonInput">Input links / NPVT / text</label>
-          <textarea id="linksJsonInput" spellcheck="false" placeholder="Paste vless://, vmess://, trojan://, ss://, socks://, NPVT1, Base64 subscription, or mixed text here..."></textarea>
+          <textarea id="linksJsonInput" spellcheck="false" placeholder="Paste vless://, vmess://, trojan://, ss://, anytls://, NPVT1, Base64 subscription, or mixed text here..."></textarea>
         </div>
         <div>
           <label class="input-label" for="linksJsonOutput">Separated JSON output</label>
@@ -911,6 +911,48 @@ function parseTuicShare(link){
   if (u.query.has('allowInsecure') || u.query.has('insecure') || u.query.has('allow_insecure')) outbound.tls.insecure = boolFromParams(u.query, ['allowInsecure','allow_insecure','insecure']);
   return {name, protocol:'tuic', outbound};
 }
+
+function parseAnytlsShare(link){
+  const uri = parseLooseShareUri(link);
+  if (uri.scheme !== 'anytls' || !uri.host || !uri.userinfo) throw new Error('invalid AnyTLS URI');
+  const port = uri.portSpec || '443';
+  if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid AnyTLS port');
+  const outbound = {
+    type: 'anytls',
+    tag: 'proxy',
+    server: uri.host,
+    server_port: Number(port),
+    password: decodeURIComponent(uri.userinfo),
+    tls: {enabled: true}
+  };
+  if (uri.query.has('sni')) outbound.tls.server_name = uri.query.get('sni');
+  if (uri.query.has('insecure')) outbound.tls.insecure = boolFromParams(uri.query, ['insecure']);
+  return {protocol: 'anytls', name: cleanRemarkName(uri.hash, 'AnyTLS'), outbound};
+}
+
+function anytlsProfileToLink(profile, fallbackName=''){
+  const tls = profile.tls && typeof profile.tls === 'object' ? profile.tls : {};
+  const advanced = ['idle_session_check_interval', 'idle_session_timeout', 'min_idle_session', 'client_metadata'];
+  if (advanced.some(key => profile[key] !== undefined && profile[key] !== null && profile[key] !== '')) {
+    throw new Error('AnyTLS session options are not part of the standard share URI; preserve the full sing-box JSON');
+  }
+  if (Object.keys(tls).some(key => !['enabled','server_name','serverName','insecure'].includes(key))) {
+    throw new Error('AnyTLS advanced TLS options cannot be represented in the standard share URI; preserve JSON');
+  }
+  const host = String(firstValue(profile.server, profile.host)).trim();
+  const port = String(firstValue(profile.serverPort, profile.server_port, profile.port, '443'));
+  const password = firstValue(profile.password, profile.auth);
+  if (!host || !password || !/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+    throw new Error('AnyTLS requires a valid host, port and password');
+  }
+  const q = [];
+  addParam(q, 'sni', firstValue(tls.server_name, tls.serverName, profile.sni));
+  const insecure = firstValue(tls.insecure, profile.insecure);
+  if (insecure !== '') addParam(q, 'insecure', truthyParam(insecure) ? '1' : '0');
+  const name = cleanRemarkName(firstValue(profile.name, profile.remarks, fallbackName), 'AnyTLS');
+  return `anytls://${enc(password)}@${formatUriHost(host)}:${port}/${q.length ? '?' + q.join('&') : ''}#${enc(name)}`;
+}
+
 function buildSingBoxConfigFromOutbound(outbound, name='Proxy Config'){
   const clean = JSON.parse(JSON.stringify(outbound || {}));
   clean.tag = clean.tag || 'proxy';
@@ -939,6 +981,7 @@ function linkItemToSingBoxJsonObject(item, index=0){
   let parsed;
   if (proto === 'hysteria2' || proto === 'hy2' || proto === 'hysteria') parsed = parseHysteria2Share(link);
   else if (proto === 'tuic') parsed = parseTuicShare(link);
+  else if (proto === 'anytls') parsed = parseAnytlsShare(link);
   else throw new Error('not a sing-box URI');
   const obj = buildSingBoxConfigFromOutbound(parsed.outbound, parsed.name || `Config ${index + 1}`);
   obj.remarks = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
@@ -1243,7 +1286,7 @@ function extractRawLinks(text) {
   // Important: match only when the scheme starts at a real boundary.
   // Without the boundary, "wss://[host]/" inside Xray WebSocket headers can be
   // misread as a fake "ss://[host]/" Shadowsocks link.
-  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|wireguard):\/\/[^\s"'<>]+)/gi;
+  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|anytls|wireguard):\/\/[^\s"'<>]+)/gi;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const link = cleanExtractedUri(m[2]);
@@ -1441,6 +1484,21 @@ function outboundToProfiles(outbound, inheritedName='') {
       insecure: firstValue(tls.insecure, outbound.insecure, outbound.allowInsecure),
       pinSHA256: firstValue(tls.pinSHA256, tls.pin_sha256, outbound.pinSHA256, outbound.pin_sha256),
       alpn: firstValue(tls.alpn, outbound.alpn)
+    });
+  }
+  if (protocol === 'anytls') {
+    const tls = outbound.tls || {};
+    profiles.push({
+      protocol: 'anytls',
+      name: baseName,
+      server: firstValue(outbound.server, outbound.address),
+      serverPort: firstValue(outbound.server_port, outbound.serverPort),
+      password: outbound.password,
+      tls,
+      idle_session_check_interval: outbound.idle_session_check_interval,
+      idle_session_timeout: outbound.idle_session_timeout,
+      min_idle_session: outbound.min_idle_session,
+      client_metadata: outbound.client_metadata
     });
   }
   return profiles;
@@ -1655,6 +1713,7 @@ function hysteria2ProfileToLink(p, fallbackName=''){
 }
 
 function profileToLink(p, fallbackName='') {
+  if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'anytls') return anytlsProfileToLink(p, fallbackName);
   const n = normalizedProfile(p, fallbackName);
   if (!n.host || !n.port) throw new Error('missing host/port');
   const protocol = detectProtocol(p);
@@ -2105,11 +2164,14 @@ function jsonToNpvtAction(){
     'Mode: JSON → real-schema NPVT1 container'
   ];
   let output = '';
-  if (res.links.length) {
+  const npvtLinks = res.links.filter(x => isNpvtBuildSupportedLink(x.link));
+  const skipped = res.links.length - npvtLinks.length;
+  if (skipped) lines.push(`Skipped ${skipped} protocol(s) unsupported by NPVT1; export as sing-box JSON instead.`);
+  if (npvtLinks.length) {
     try {
-      if ($('jsonOneTokenPerLink').checked) output = res.links.map(x => buildCompleteNPVTContainer([x])).join('\n');
-      else output = buildCompleteNPVTContainer(res.links);
-      lines.push(`NPVT1 containers: ${$('jsonOneTokenPerLink').checked ? res.links.length : 1}`);
+      if ($('jsonOneTokenPerLink').checked) output = npvtLinks.map(x => buildCompleteNPVTContainer([x])).join('\n');
+      else output = buildCompleteNPVTContainer(npvtLinks);
+      lines.push(`NPVT1 containers: ${$('jsonOneTokenPerLink').checked ? npvtLinks.length : 1}`);
     } catch (e) {
       lines.push(`NPVT build failed: ${e.message || e}`);
     }
@@ -2126,7 +2188,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   if (!link) throw new Error('empty link');
   const proto = String(link.split('://')[0] || '').toLowerCase();
-  if (['hysteria2','hy2','hysteria','tuic'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
+  if (['hysteria2','hy2','hysteria','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
@@ -2161,7 +2223,7 @@ function normalizeJsonConfigName(name){
 }
 function isSupportedJsonOutboundProtocol(proto){
   proto = String(proto || '').toLowerCase();
-  return ['vless','vmess','trojan','shadowsocks','ss','socks','hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','ssh'].includes(proto);
+  return ['vless','vmess','trojan','shadowsocks','ss','socks','hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls','ssh'].includes(proto);
 }
 function jsonConfigSupportedOutbounds(obj){
   if (!obj || typeof obj !== 'object' || !Array.isArray(obj.outbounds)) return [];
@@ -2217,6 +2279,12 @@ function cleanupOutboundForPaste(out){
 }
 function makePasteReadyXrayConfig(obj){
   const src = JSON.parse(JSON.stringify(obj || {}));
+  // sing-box has a different schema from Xray; never inject Xray-style inbounds into it.
+  if (Array.isArray(src.outbounds) && src.outbounds.some(o => o && o.type && !o.protocol)) {
+    delete src.remarks;
+    delete src.name;
+    return src;
+  }
   const allowedTop = new Set(['log','api','dns','routing','policy','inbounds','outbounds','transport','stats','reverse','fakedns','metrics','observatory','burstObservatory','route','experimental']);
   const clean = {};
   for (const key of Object.keys(src)) {

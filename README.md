@@ -121,7 +121,26 @@ The converter is focused on V2Ray/Xray-compatible profile families commonly used
 | Trojan | Yes | Yes | Yes | Yes | Preserves password, TLS, SNI, WS/TCP fields |
 | Shadowsocks | Yes | Yes | Yes | Yes | SIP002-style `ss://` parser |
 | SOCKS | Yes | Yes | Partial | Yes | Basic SOCKS profile mapping |
+| AnyTLS | Yes | No | Standard URI fields only | Yes (sing-box JSON) | Advanced session/TLS options require full JSON; not NPVT1 |
 | Base64 subscriptions | Yes | Extracts links | N/A | N/A | Decodes and scans supported links |
+
+---
+
+## Protocol compatibility and tests
+
+The converter supports standard [AnyTLS share URIs](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md) with password, server, port, SNI, and insecure TLS settings. AnyTLS link inputs export as native sing-box JSON. Basic sing-box AnyTLS outbounds can export to standard share URIs.
+
+**NPVT1 is not a universal proxy container.** AnyTLS, Hysteria2, TUIC and other non-NPV protocols cannot be exported as NPVT1 without a verified target-client schema. The JSON-to-NPVT path skips such profiles and reports the omission instead of silently mislabeling them.
+
+Session tuning, advanced TLS fields, nested proxy chains and other configuration features without a standard URI representation are not silently flattened into links. Preserve the original JSON when these fields matter. A supported share link does not imply that all fields of an arbitrary full configuration will survive conversion.
+
+Protocol regressions run with Node.js 22:
+
+```sh
+node --test tests/*.test.cjs
+```
+
+The GitHub Actions workflow runs these tests on pull requests. They check deterministic conversion behavior; actual NPV Tunnel and upstream server interoperability still requires manual integration testing.
 
 ---
 
