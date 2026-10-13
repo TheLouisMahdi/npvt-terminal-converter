@@ -8,10 +8,10 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 
 | Detected content (extension is only a hint) | Output offered | Not offered / reasons |
 | --- | --- | --- |
-| VLESS / VMess / Trojan / SS / SOCKS URI | Plain link, Base64 subscription, Xray JSON; legacy NPVT1 only when verified | sing-box and Mihomo unless a verified native adapter exists |
+| VLESS / VMess / Trojan / SS / SOCKS URI | Plain link, Base64 subscription, Xray JSON; legacy NPVT1 only when verified; Mihomo YAML/JSON for basic VLESS/VMess/Trojan/SS | Advanced options and unsupported Core mappings |
 | AnyTLS, Hysteria2 / Realm / Gecko, TUIC share URI | Link, Base64 subscription, sing-box JSON where supported | NPVT1 and Xray JSON |
 | TrustTunnel `tt://?` v2 deep link | Mihomo YAML/JSON and TT link when losslessly mappable | Deep-link-only options and subscription pointers are not silently discarded |
-| Mihomo / Clash native YAML/JSON (supported node types) | Mihomo YAML/JSON, single-node WG INI or TT link when supported | NPVT1 and Xray URI where no native mapping exists |
+| Mihomo / Clash native YAML/JSON (supported node types) | Mihomo YAML/JSON, single-node WG INI or TT link; basic VLESS/VMess/Trojan/SS → link and Xray JSON when fully representable | NPVT1 and Xray URI where no verified mapping exists |
 | WireGuard / AmneziaWG client INI | Mihomo YAML/JSON, WireGuard INI | VLESS, Trojan and other unrelated VPN protocols |
 | Xray / V2Ray / NPV JSON | Original JSON, share URI (only when verified), Xray JSON | Unmappable extra fields block lossy short URI conversion |
 | sing-box JSON | Original JSON, sing-box JSON, supported share URI | Unsupported native-only fields block shortened URI output |
@@ -22,7 +22,11 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 | Generic JSON | Original JSON | No guessed proxy protocol |
 | Unsupported external URI, e.g. SSR/SSD/EHI/HAT/other | Recognition message | No fabricated conversion results |
 
-### Batch mode
+#### Additional basic Mihomo link adapter
+
+For **VLESS, VMess, Trojan, Shadowsocks**, TCP and simple WebSocket plus TLS fields can now be converted to/from a Mihomo native node. This is a deliberately strict subset: unsupported options (including XHTTP, plugin-specific Shadowsocks options, advanced WebSocket headers and unknown source properties) are rejected instead of dropped. The resulting URI-to-native VLESS sample is validated by the pinned official Mihomo Core in CI.
+
+## Batch mode
 
 - Multiple URI and subscription files are combined into a link list or Base64 subscription.
 - Multiple supported Mihomo or WireGuard files can be merged into Mihomo JSON/YAML, preserving node types.

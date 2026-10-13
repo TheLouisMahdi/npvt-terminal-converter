@@ -28,3 +28,10 @@ for(const proxy of items){
  fs.writeFileSync(path.join(output,base+'.yaml'),yaml);
  console.log('Generated '+base+'.yaml');
 }
+
+
+const sample='vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@vless.example.org:443?encryption=none&security=tls&type=ws&host=cdn.example.org&path=%2Fws&sni=vless.example.org#VLESS';
+const native=vm.runInContext('smartNativeMihomo(smartRecognizeText('+JSON.stringify(sample)+'))',context);
+const nativeYaml=vm.runInContext('dumpMihomoYaml(smartNativeMihomo(smartRecognizeText('+JSON.stringify(sample)+')))',context);
+fs.writeFileSync(path.join(output,'vless-uri-roundtrip.yaml'),nativeYaml);
+console.log('Generated vless-uri-roundtrip.yaml');
