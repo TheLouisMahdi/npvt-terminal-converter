@@ -9,7 +9,7 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '..', 'Index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(script, 'Inline application script exists');
-const wiring = script.indexOf("$('bubbleToggle').addEventListener");
+const wiring = script.indexOf("document.addEventListener('dragover'");
 assert.ok(wiring > 0, 'Application event wiring anchor exists');
 
 const context = vm.createContext({
