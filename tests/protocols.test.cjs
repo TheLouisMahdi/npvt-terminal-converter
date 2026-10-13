@@ -328,3 +328,26 @@ test('Unknown SIP003 plugin is rejected, not silently converted', () => {
   const uri = 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:443/?plugin=unknown-plugin%3Bfoo%3Dbar';
   assert.throws(() => run(`linkItemToStandaloneJsonObject({link:${JSON.stringify(uri)}})`), /unsupported Shadowsocks plugin/);
 });
+
+
+test('Shadowsocks plugin native sing-box JSON round-trips to SIP002 URI', () => {
+  const uri = 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388/?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dcdn.example#Node';
+  const native = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(uri)}})`);
+  const converted = json(`convertJSONToLinks(${JSON.stringify(native)})`);
+  assert.equal(converted.errors.length, 0, converted.errors.join('; '));
+  assert.equal(converted.links.length, 1);
+  const back = new URL(converted.links[0].link);
+  assert.equal(back.searchParams.get('plugin'), 'obfs-local;obfs=http;obfs-host=cdn.example');
+  assert.equal(back.hostname, 'example.org');
+});
+
+test('Shadowsocks unknown native options do not disappear into share URI', () => {
+  const config = {outbounds:[{
+    type:'shadowsocks', server:'example.org',server_port:443,
+    method:'aes-128-gcm',password:'secret', plugin:'obfs-local',
+    plugin_opts:'obfs=http', multiplex:{enabled:true}
+  }]};
+  const converted = json(`convertJSONToLinks(${JSON.stringify(config)})`);
+  assert.equal(converted.links.length, 0);
+  assert.match(converted.errors.join(' '), /Advanced Shadowsocks options/);
+});
