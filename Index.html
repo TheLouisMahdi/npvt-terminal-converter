@@ -415,6 +415,34 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       </div>
     </section>
 
+    <section class="panel" id="nativeTools">
+      <h2>05 — Mihomo / Clash YAML and AmneziaWG</h2>
+      <p>Convert native proxy nodes without changing protocols or dropping advanced settings. Supports Snell, TrustTunnel, ShadowQUIC, Mieru and WireGuard / AmneziaWG v3.1. Paste Mihomo YAML/JSON or WireGuard client INI. Unsupported YAML constructs and unmappable fields produce explicit errors.</p>
+      <div class="panes">
+        <div>
+          <label class="input-label" for="nativeInput">Mihomo YAML / JSON / WireGuard INI</label>
+          <textarea id="nativeInput" spellcheck="false" placeholder='proxies:&#10;  - name: "TrustTunnel"&#10;    type: trusttunnel&#10;    server: example.org&#10;    port: 443&#10;    username: user&#10;    password: secret'></textarea>
+        </div>
+        <div>
+          <label class="input-label" for="nativeOutput">Converted native config</label>
+          <textarea id="nativeOutput" spellcheck="false" readonly placeholder="Select an output format. No network requests are made."></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <div class="switch-stack">
+          <small class="hint-line">YAML import accepts plain mappings and sequences; anchors, tags, merge keys, folded scalars and templating need a full YAML parser and are rejected. WireGuard conversion covers supported client fields, including AmneziaWG v3/v3.1 flags. No invented NPVT or share URI is generated.</small>
+        </div>
+        <div class="controls">
+          <button class="btn primary" type="button" id="nativeToYaml">→ Mihomo YAML</button>
+          <button class="btn secondary" type="button" id="nativeToJson">→ Native JSON</button>
+          <button class="btn secondary" type="button" id="nativeToIni">→ WireGuard INI</button>
+          <button class="btn secondary" type="button" id="nativeCopy">Copy</button>
+          <button class="btn bad" type="button" id="nativeClear">Clear</button>
+        </div>
+      </div>
+      <div class="log" id="nativeLog">Ready. Only native config representations are converted here.</div>
+    </section>
+
     </div>
 
     <section class="panel" id="resultsTable">
@@ -3340,6 +3368,14 @@ function runNativeFormat(mode){
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
+$('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
+$('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
+$('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));
+$('nativeClear').addEventListener('click',()=>{$('nativeInput').value='';$('nativeOutput').value='';$('nativeLog').textContent='Ready.';});
+$('nativeCopy').addEventListener('click',()=>{
+  if(!$('nativeOutput').value)return;
+  navigator.clipboard.writeText($('nativeOutput').value).then(()=>{$('nativeLog').textContent='Output copied.';}).catch(()=>{$('nativeLog').textContent='Copy unavailable. Select and copy output manually.';});
+});
 document.addEventListener('drop',e=>e.preventDefault());
 
 $('bubbleToggle').addEventListener('click',()=>$('bubbleNav').classList.toggle('open'));
