@@ -67,7 +67,7 @@ async function run() {
       await page.locator('#reverseInput').fill(vless);
       await page.locator('#buildReverse').click();
       const npvt=await page.locator('#reverseOutput').inputValue();
-      assert.match(npvt,/^NPVT1 /);
+      assert.match(npvt,/^NPVT1\s+/);
       await page.locator('#forwardInput').fill(npvt);
       await page.locator('#convertForward').click();
       assert.match(await page.locator('#forwardOutput').inputValue(),/vless:\/\//i);
