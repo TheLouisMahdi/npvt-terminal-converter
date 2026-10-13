@@ -126,6 +126,23 @@ The converter is focused on V2Ray/Xray-compatible profile families commonly used
 
 ---
 
+## Hysteria2 2026 compatibility
+
+The converter now recognizes the documented Hysteria2 / HY2 URI form, including Gecko obfuscation and UDP port hopping. Port ranges such as `443,5000-6000` map to sing-box's native `server_ports: ["443", "5000:6000"]` representation. The reverse route maps the ranges back to standard Hysteria2 URI syntax.
+
+The documented `hysteria2+realm://` and `hysteria2+realm+http://` schemes map to sing-box 1.14+ `realm` objects. A Realm token is **not** the Hysteria authentication password. `auth` is read separately, and the realm name and repeated STUN addresses are mapped explicitly. For a valid sing-box Realm export, the input URI must specify STUN servers.
+
+**Lossless conversion limit:** official Hysteria URI ECH config lists are base64, whereas sing-box expects a PEM-formatted ECH config array. Certificate pin formats differ too. Until those encodings are verified against both implementations, converting those URI options to native sing-box JSON is blocked with a warning. Realm `lport`, Gecko packet-size tuning, `hop_interval_max`, `bbr_profile`, `disable_chrome_parrot`, extra TLS options, and other non-URI sing-box settings must remain in full JSON. They must not be silently flattened into short share links.
+
+Sources:
+- [Hysteria2 official URI scheme](https://v2.hysteria.network/docs/developers/URI-Scheme/)
+- [sing-box Hysteria2 outbound schema](https://sing-box.sagernet.org/configuration/outbound/hysteria2/)
+- [sing-box TLS and ECH schema](https://sing-box.sagernet.org/configuration/shared/tls/)
+
+Compatibility tests: `node --test tests/*.test.cjs`. External client/server interoperability remains unverified by this test suite.
+
+---
+
 ## Protocol compatibility and tests
 
 The converter supports standard [AnyTLS share URIs](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md) with password, server, port, SNI, and insecure TLS settings. AnyTLS link inputs export as native sing-box JSON. Basic sing-box AnyTLS outbounds can export to standard share URIs.
