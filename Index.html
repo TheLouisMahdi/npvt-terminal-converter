@@ -3217,6 +3217,25 @@ function dumpMihomoYaml(value){
   return emit(value,0)+'\n';
 }
 const NATIVE_MIHOMO_TYPES = ['snell','trusttunnel','shadowquic','mieru','wireguard','ss','vmess','vless','trojan','anytls','hysteria2','tuic','http','socks5'];
+function validateAmneziaOption(option){
+  if(!option)return;
+  if(![1,2,3].includes(Number(option.version)))throw new Error('Unsupported AmneziaWG version');
+  const key=option['header-protection-key'];
+  if(key){
+    if(typeof key!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(key)||b64ToBytes(key).length!==32) {
+      throw new Error('HeaderProtectionKey must be a 32-byte Base64 key');
+    }
+    for(const field of ['s1','s2','s3','s4']){
+      if(!Number.isInteger(Number(option[field]))||Number(option[field])<12) {
+        throw new Error('AmneziaWG HeaderProtectionKey requires S1-S4 >= 12 bytes');
+      }
+    }
+    if(Number(option.version)!==3)throw new Error('HeaderProtectionKey requires AmneziaWG version 3');
+  }
+  if((option['random-trailers']||option['disable-cookies'])&&Number(option.version)!==3) {
+    throw new Error('AmneziaWG 3.1 flags require version 3');
+  }
+}
 function validateMihomoNodes(obj){
   if(!obj||typeof obj!=='object'||!Array.isArray(obj.proxies))throw new Error('Expected Mihomo {proxies:[...]}');
   if(!obj.proxies.length)throw new Error('No Mihomo proxy nodes found');
@@ -3227,6 +3246,7 @@ function validateMihomoNodes(obj){
     seen.add(p.name);
     if(p.type==='wireguard') {
       if(!p['private-key']||!p.ip&&!p.ipv6)throw new Error('Incomplete WireGuard interface');
+      validateAmneziaOption(p['amnezia-wg-option']);
     }else {
       if(!p.server||!Number.isInteger(Number(p.port))||Number(p.port)<1||Number(p.port)>65535) {
         if(!(p.type==='mieru'&&p['port-range']&&!p.port))throw new Error('Invalid server/port in '+p.name);
@@ -3308,6 +3328,7 @@ function parseWireGuardIni(input){
   });
   if(mapped.length===1)Object.assign(p,mapped[0]);
   else p.peers=mapped;
+  validateAmneziaOption(p['amnezia-wg-option']);
   return {proxies:[p]};
 }
 function wireGuardToIni(input){
@@ -3323,8 +3344,9 @@ function wireGuardToIni(input){
   if(obj.mtu!==undefined)lines.push('MTU = '+obj.mtu);
   if(obj['amnezia-wg-option']){
     const a=obj['amnezia-wg-option'];
+    validateAmneziaOption(a);
     for(const k of Object.keys(a))if(k!=='version'&&!AWG_KEYS[k])throw new Error('Unknown AmneziaWG option '+k);
-    if(a.version!==undefined)lines.push('AmneziaWGVersion = '+a.version);
+    // AWG protocol version is inferred from supported parameters in real client INI; do not emit a nonstandard key.
     for(const [key,label] of Object.entries(AWG_KEYS))if(a[key]!==undefined)lines.push(label+' = '+a[key]);
   }
   const peers=obj.peers||[obj];
