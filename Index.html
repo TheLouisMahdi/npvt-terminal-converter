@@ -3046,6 +3046,299 @@ function wireDrop(zoneId, fileId, handler){
   input.addEventListener('click',e=>e.stopPropagation());
   input.addEventListener('change',e=>handler([...e.target.files]));
 }
+
+/* Offline native-format adapters: restricted YAML mappings and AWG/WireGuard INI.
+   Unsupported YAML features fail closed; nothing is fetched or evaluated. */
+function nativeYamlScalar(raw){
+  const v = String(raw).trim();
+  if (!v) return '';
+  if (v[0] === '"' ) { try { return JSON.parse(v); } catch (_) { throw new Error('Invalid YAML quoted scalar'); } }
+  if (v[0] === "'") {
+    if (!v.endsWith("'")) throw new Error('Unterminated YAML single quote');
+    return v.slice(1,-1).replace(/''/g,"'");
+  }
+  if (/^[!&*]/.test(v) || /^[>|]/.test(v)) throw new Error('YAML tags, anchors and block scalars require a full YAML parser');
+  if (v[0] === '[' && v.endsWith(']')) {
+    const body = v.slice(1,-1).trim();
+    return body ? nativeYamlSplit(body).map(nativeYamlScalar) : [];
+  }
+  if (v[0] === '{' && v.endsWith('}')) {
+    const body=v.slice(1,-1).trim(), result={};
+    if (body) for(const entry of nativeYamlSplit(body)){
+      const m=entry.match(/^([^:]+):\s*(.*)$/);
+      if (!m) throw new Error('Invalid YAML inline object');
+      const key=String(nativeYamlScalar(m[1]));
+      if (Object.prototype.hasOwnProperty.call(result,key) || ['__proto__','constructor','prototype'].includes(key)) throw new Error('Unsafe or duplicate YAML key');
+      result[key]=nativeYamlScalar(m[2]);
+    }
+    return result;
+  }
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (v === 'null' || v === '~') return null;
+  if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(v) && Number.isFinite(Number(v))) return Number(v);
+  return v;
+}
+function nativeYamlSplit(input){
+  const out=[]; let start=0, quote='', depth=0;
+  for(let i=0;i<input.length;i++){
+    const ch=input[i];
+    if (quote) {
+      if (quote==='"' && ch==='\\') {i++; continue;}
+      if(ch===quote){if(quote==="'" && input[i+1]==="'"){i++;continue;} quote='';}
+      continue;
+    }
+    if(ch==='"'||ch==="'"){quote=ch;continue;}
+    if(ch==='['||ch==='{')depth++;
+    else if(ch===']'||ch==='}')depth--;
+    else if(ch===',' && depth===0){out.push(input.slice(start,i).trim());start=i+1;}
+    if(depth<0)throw new Error('Malformed YAML inline syntax');
+  }
+  if(quote||depth!==0)throw new Error('Unbalanced YAML quotes or inline collection');
+  out.push(input.slice(start).trim());
+  return out;
+}
+function nativeYamlStripComment(line){
+  let quote='';
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(quote){
+      if(quote==='"'&&ch==='\\'){i++;continue;}
+      if(ch===quote){if(ch==="'"&&line[i+1]==="'"){i++;continue;}quote='';}
+    }else if(ch==='"'||ch==="'")quote=ch;
+    else if(ch==='#'&&(i===0||/\s/.test(line[i-1])))return line.slice(0,i).trimEnd();
+  }
+  return line.trimEnd();
+}
+function parseMihomoYaml(input){
+  const text=String(input||'');
+  if(text.length>1000000)throw new Error('YAML exceeds 1 MB input limit');
+  if(/^\s*[\[{]/.test(text)) {try{return JSON.parse(text);}catch (_) {}}
+  const tokens=[];
+  for(const [n,line] of text.replace(/^\uFEFF/,'').split(/\r?\n/).entries()){
+    if(/\t/.test(line.slice(0,line.search(/\S|$/)))) throw new Error('YAML indentation cannot contain tabs');
+    const body=nativeYamlStripComment(line);
+    if(!body.trim()||body.trim()==='---'||body.trim()==='...')continue;
+    if(/^\s*(?:%|!|&|\*)/.test(body))throw new Error('Unsupported YAML directive, tag or alias at line '+(n+1));
+    const indent=body.length-body.trimStart().length;
+    tokens.push({indent,body:body.trim(),line:n+1});
+  }
+  if(!tokens.length)throw new Error('Empty YAML');
+  let pos=0;
+  function parseBlock(indent){
+    if(pos>=tokens.length || tokens[pos].indent!==indent)throw new Error('Unexpected YAML indentation');
+    const isList=/^-(?:\s|$)/.test(tokens[pos].body);
+    const out=isList?[]:{};
+    while(pos<tokens.length&&tokens[pos].indent===indent){
+      const t=tokens[pos++];
+      if(isList){
+        if(!/^-(?:\s|$)/.test(t.body))throw new Error('Mixed YAML array/map at '+t.line);
+        const body=t.body.slice(1).trim();
+        if(!body){
+          if(pos>=tokens.length||tokens[pos].indent<=indent)throw new Error('Missing YAML list entry');
+          out.push(parseBlock(tokens[pos].indent));
+        }else if(/^[^:]+:\s*(?:.*)$/.test(body)){
+          tokens.splice(pos,0,{indent:indent+2,body,line:t.line});
+          out.push(parseBlock(indent+2));
+        }else{
+          out.push(nativeYamlScalar(body));
+          if(pos<tokens.length&&tokens[pos].indent>indent)throw new Error('Unexpected nested YAML scalar at '+t.line);
+        }
+      } else {
+        const m=t.body.match(/^([^:]+):(?:\s+(.*))?$/);
+        if(!m)throw new Error('Expected YAML mapping at line '+t.line);
+        const key=String(nativeYamlScalar(m[1]));
+        if(!key||['__proto__','constructor','prototype'].includes(key)||Object.prototype.hasOwnProperty.call(out,key))throw new Error('Duplicate or unsafe YAML key '+key);
+        if(m[2]!==undefined)out[key]=nativeYamlScalar(m[2]);
+        else if(pos<tokens.length&&tokens[pos].indent>indent)out[key]=parseBlock(tokens[pos].indent);
+        else out[key]=null;
+      }
+    }
+    if(pos<tokens.length&&tokens[pos].indent>indent)throw new Error('Unexpected YAML indentation at '+tokens[pos].line);
+    return out;
+  }
+  const out=parseBlock(tokens[0].indent);
+  if(pos!==tokens.length)throw new Error('Unsupported YAML document structure at '+tokens[pos].line);
+  return out;
+}
+function dumpMihomoYaml(value){
+  function scalar(x){
+    if(x===null)return 'null';
+    if(typeof x==='boolean'||typeof x==='number')return JSON.stringify(x);
+    if(typeof x==='string')return JSON.stringify(x);
+    throw new Error('Unsupported YAML scalar');
+  }
+  function emit(x,depth){
+    const p=' '.repeat(depth),out=[];
+    if(Array.isArray(x)){
+      for(const item of x){
+        if(item!==null&&typeof item==='object'){out.push(p+'-');out.push(emit(item,depth+2));}
+        else out.push(p+'- '+scalar(item));
+      }
+    }else if(x!==null&&typeof x==='object'){
+      for(const [key,item] of Object.entries(x)){
+        if(!/^[A-Za-z0-9_-]+$/.test(key)) throw new Error('Unsupported YAML key '+key);
+        if(item!==null&&typeof item==='object'){out.push(p+key+':');out.push(emit(item,depth+2));}
+        else out.push(p+key+': '+scalar(item));
+      }
+    }else throw new Error('Expected native YAML map or list');
+    return out.join('\n');
+  }
+  return emit(value,0)+'\n';
+}
+const NATIVE_MIHOMO_TYPES = ['snell','trusttunnel','shadowquic','mieru','wireguard','ss','vmess','vless','trojan','anytls','hysteria2','tuic','http','socks5'];
+function validateMihomoNodes(obj){
+  if(!obj||typeof obj!=='object'||!Array.isArray(obj.proxies))throw new Error('Expected Mihomo {proxies:[...]}');
+  if(!obj.proxies.length)throw new Error('No Mihomo proxy nodes found');
+  const seen=new Set();
+  for(const p of obj.proxies){
+    if(!p||typeof p!=='object'||Array.isArray(p)||!NATIVE_MIHOMO_TYPES.includes(p.type))throw new Error('Unsupported or missing Mihomo node type');
+    if(typeof p.name!=='string'||!p.name.trim()||seen.has(p.name))throw new Error('Duplicate or missing proxy name');
+    seen.add(p.name);
+    if(p.type==='wireguard') {
+      if(!p['private-key']||!p.ip&&!p.ipv6)throw new Error('Incomplete WireGuard interface');
+    }else {
+      if(!p.server||!Number.isInteger(Number(p.port))||Number(p.port)<1||Number(p.port)>65535) {
+        if(!(p.type==='mieru'&&p['port-range']&&!p.port))throw new Error('Invalid server/port in '+p.name);
+      }
+    }
+    if(p.type==='snell'&&!p.psk)throw new Error('Snell requires psk');
+    if(['trusttunnel','shadowquic','mieru'].includes(p.type)&&(!p.username||!p.password))throw new Error(p.type+' requires username and password');
+  }
+  return obj;
+}
+const AWG_KEYS = {
+  jc:'Jc', jmin:'Jmin',jmax:'Jmax',s1:'S1',s2:'S2',s3:'S3',s4:'S4',
+  h1:'H1',h2:'H2',h3:'H3',h4:'H4',i1:'I1',i2:'I2',i3:'I3',i4:'I4',i5:'I5',
+  'header-protection-key':'HeaderProtectionKey',
+  'content-padding-addition':'ContentPaddingAddition',
+  'rekey-after-time':'RekeyAfterTime','rekey-timeout':'RekeyTimeout',
+  'reject-after-time':'RejectAfterTime','keepalive-timeout':'KeepaliveTimeout',
+  'max-handshake-attempts':'MaxHandshakeAttempts',
+  'random-trailers':'RandomTrailers','disable-cookies':'DisableCookies'
+};
+function parseWireGuardIni(input){
+  const sections=[];let section=null;
+  for(const [i,raw] of String(input||'').split(/\r?\n/).entries()){
+    const line=raw.trim();
+    if(!line||line.startsWith('#')||line.startsWith(';'))continue;
+    if(/^\[(Interface|Peer)\]$/i.test(line)){section={type:line.slice(1,-1).toLowerCase(),keys:{}};sections.push(section);continue;}
+    if(!section)throw new Error('INI field before a section at line '+(i+1));
+    const m=line.match(/^([A-Za-z][A-Za-z0-9]*)\s*=\s*(.*)$/);
+    if(!m)throw new Error('Invalid WireGuard field at line '+(i+1));
+    const k=m[1].toLowerCase();
+    if(Object.prototype.hasOwnProperty.call(section.keys,k))throw new Error('Duplicate WireGuard key '+m[1]);
+    section.keys[k]=m[2].trim();
+  }
+  const intf=sections.filter(x=>x.type==='interface');
+  const peers=sections.filter(x=>x.type==='peer');
+  if(intf.length!==1||!peers.length)throw new Error('Expected one [Interface] and at least one [Peer]');
+  const iface=intf[0].keys;
+  const ifaceAllowed=new Set(['privatekey','address','mtu','amneziawgversion','version',...Object.values(AWG_KEYS).map(x=>x.toLowerCase())]);
+  const peerAllowed=new Set(['publickey','presharedkey','allowedips','endpoint','persistentkeepalive']);
+  for(const k of Object.keys(iface))if(!ifaceAllowed.has(k))throw new Error('Unsupported Interface field '+k+'; preserve original INI');
+  for(const peer of peers)for(const k of Object.keys(peer.keys))if(!peerAllowed.has(k))throw new Error('Unsupported Peer field '+k+'; preserve original INI');
+  if(!iface.privatekey||!iface.address)throw new Error('WireGuard requires PrivateKey and Address');
+  const addresses=iface.address.split(',').map(x=>x.trim());
+  const ipv4=addresses.find(x=>!x.includes(':')),ipv6=addresses.find(x=>x.includes(':'));
+  if(addresses.length>2||addresses.some(x=>!x)||!ipv4&&!ipv6)throw new Error('Unsupported Interface Address layout');
+  const p={type:'wireguard',name:'WireGuard', 'private-key':iface.privatekey,udp:true};
+  if(ipv4)p.ip=ipv4;
+  if(ipv6)p.ipv6=ipv6;
+  if(iface.mtu){p.mtu=Number(iface.mtu);if(!Number.isInteger(p.mtu)||p.mtu<576||p.mtu>9000)throw new Error('Invalid MTU');}
+  const awg={};
+  for(const [key,label] of Object.entries(AWG_KEYS)){
+    const val=iface[label.toLowerCase()];
+    if(val!==undefined){
+      if(key==='random-trailers'||key==='disable-cookies'){
+        if(!/^(true|false)$/i.test(val))throw new Error('Invalid AmneziaWG boolean '+label);
+        awg[key]=val.toLowerCase()==='true';
+      }else if(/^jc$|^jmin$|^jmax$|^s[1-4]$|^(?:rekey-after-time|rekey-timeout|reject-after-time|keepalive-timeout|max-handshake-attempts)$/.test(key)){
+        awg[key]=Number(val);
+        if(!Number.isFinite(awg[key])||awg[key]<0)throw new Error('Invalid AmneziaWG number '+label);
+      }else awg[key]=val;
+    }
+  }
+  if(Object.keys(awg).length||iface.amneziawgversion||iface.version){
+    const version=Number(iface.amneziawgversion||iface.version||(awg['header-protection-key']!==undefined||awg['random-trailers']!==undefined?3:2));
+    if(![1,2,3].includes(version))throw new Error('Unsupported AWG version');
+    awg.version=version;
+    p['amnezia-wg-option']=awg;
+  }
+  const mapped=peers.map(section=>{
+    const q=section.keys;
+    if(!q.publickey||!q.endpoint)throw new Error('WireGuard peer requires PublicKey and Endpoint');
+    const m=q.endpoint.match(/^(?:\[([^\]]+)\]|([^:]+)):(\d+)$/);
+    if(!m||Number(m[3])<1||Number(m[3])>65535)throw new Error('Invalid WireGuard Endpoint');
+    const out={server:m[1]||m[2],port:Number(m[3]),'public-key':q.publickey};
+    if(q.presharedkey)out['pre-shared-key']=q.presharedkey;
+    if(q.allowedips)out['allowed-ips']=q.allowedips.split(',').map(x=>x.trim());
+    if(q.persistentkeepalive)out['persistent-keepalive']=Number(q.persistentkeepalive);
+    return out;
+  });
+  if(mapped.length===1)Object.assign(p,mapped[0]);
+  else p.peers=mapped;
+  return {proxies:[p]};
+}
+function wireGuardToIni(input){
+  const obj=input&&input.proxies?input.proxies[0]:input;
+  if(!obj||obj.type!=='wireguard')throw new Error('Expected WireGuard Mihomo proxy');
+  const allowed=new Set(['type','name','private-key','ip','ipv6','mtu','udp','peers','server','port','public-key','pre-shared-key','allowed-ips','persistent-keepalive','amnezia-wg-option']);
+  for(const key of Object.keys(obj))if(!allowed.has(key))throw new Error('Unmapped WireGuard option '+key+'; use native YAML');
+  if(!obj['private-key'])throw new Error('Missing WireGuard private-key');
+  const lines=['[Interface]','PrivateKey = '+obj['private-key']];
+  const ips=[obj.ip,obj.ipv6].filter(Boolean);
+  if(!ips.length)throw new Error('Missing WireGuard address');
+  lines.push('Address = '+ips.join(', '));
+  if(obj.mtu!==undefined)lines.push('MTU = '+obj.mtu);
+  if(obj['amnezia-wg-option']){
+    const a=obj['amnezia-wg-option'];
+    for(const k of Object.keys(a))if(k!=='version'&&!AWG_KEYS[k])throw new Error('Unknown AmneziaWG option '+k);
+    if(a.version!==undefined)lines.push('AmneziaWGVersion = '+a.version);
+    for(const [key,label] of Object.entries(AWG_KEYS))if(a[key]!==undefined)lines.push(label+' = '+a[key]);
+  }
+  const peers=obj.peers||[obj];
+  for(const p of peers){
+    if(!p.server||!p.port||!p['public-key'])throw new Error('Incomplete WireGuard peer');
+    for(const key of Object.keys(p)){
+      if(p!==obj&&!['server','port','public-key','pre-shared-key','allowed-ips','persistent-keepalive'].includes(key))throw new Error('Unmapped peer field '+key);
+    }
+    lines.push('','[Peer]','PublicKey = '+p['public-key'],
+      'Endpoint = '+(String(p.server).includes(':')?'['+p.server+']':p.server)+':'+p.port);
+    if(p['pre-shared-key'])lines.push('PresharedKey = '+p['pre-shared-key']);
+    if(p['allowed-ips'])lines.push('AllowedIPs = '+p['allowed-ips'].join(', '));
+    if(p['persistent-keepalive']!==undefined)lines.push('PersistentKeepalive = '+p['persistent-keepalive']);
+  }
+  return lines.join('\n')+'\n';
+}
+function nativeFormatConvert(input, target){
+  const text=String(input||'').trim();
+  if(!text)throw new Error('Native input is empty');
+  let value;
+  if(/^\[Interface\]/im.test(text))value=parseWireGuardIni(text);
+  else if(/^[\[{]/.test(text)){try{value=JSON.parse(text);}catch(_){value=parseMihomoYaml(text);}}
+  else value=parseMihomoYaml(text);
+  if(Array.isArray(value))value={proxies:value};
+  value=validateMihomoNodes(value);
+  if(target==='json')return JSON.stringify(value,null,2);
+  if(target==='yaml')return dumpMihomoYaml(value);
+  if(target==='ini'){
+    if(value.proxies.length!==1||value.proxies[0].type!=='wireguard')throw new Error('INI export requires a single WireGuard node');
+    return wireGuardToIni(value.proxies[0]);
+  }
+  throw new Error('Unsupported native output format');
+}
+function runNativeFormat(mode){
+  const out=$('nativeOutput'),log=$('nativeLog');
+  try{
+    out.value=nativeFormatConvert($('nativeInput').value,mode);
+    log.textContent='Converted successfully. Run the target Core validator before using this configuration.';
+  }catch(e){
+    out.value='';
+    log.textContent='Cannot safely convert: '+(e.message||String(e));
+  }
+}
+
 document.addEventListener('dragover',e=>e.preventDefault());
 document.addEventListener('drop',e=>e.preventDefault());
 
