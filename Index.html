@@ -738,6 +738,19 @@ function parseStandardShare(link){
     spiderX: firstValue(q.spx, q.spiderX),
     insecure: hasInsecure ? truthyParam(firstValue(q.allowInsecure, q.insecure)) : insecureDefault
   };
+  if (normalizeNetworkId(parsedNetwork) === 'xhttp') {
+    common.xhttpMode = firstValue(q.mode);
+    if (common.xhttpMode && !['auto','packet-up','stream-up','stream-one'].includes(common.xhttpMode)) {
+      throw new Error('invalid XHTTP mode');
+    }
+    if (url.searchParams.has('extra')) {
+      try {
+        const extra = JSON.parse(q.extra);
+        if (!extra || typeof extra !== 'object' || Array.isArray(extra)) throw new Error('invalid extra object');
+        common.xhttpExtra = extra;
+      } catch (_) { throw new Error('invalid XHTTP extra JSON'); }
+    }
+  }
   if (proto === 'trojan') common.method = 'none';
   if (proto === 'socks') {
     common.username = safeDecodeURIComponent(url.username || '');
@@ -1084,7 +1097,9 @@ function npvEffectiveProtocol(p){
   // can legitimately use a short credential together with a long encryption
   // string such as mlkem768x25519plus... . Those must remain VLESS, otherwise
   // the generated JSON/NPVT loses the VLESS encryption field.
-  if (proto === 'vless' && !isUuidLike(p.password) && !isAdvancedVlessEncryption(p.method)) return 'trojan';
+  // Modern Xray permits custom VLESS IDs shorter than 30 bytes; do not
+  // reinterpret an explicitly labeled VLESS URI as Trojan based on ID shape.
+  if (proto === 'vless' && String(p.configType || '') === '6') return 'trojan';
   if (proto === 'ss') return 'shadowsocks';
   return proto || 'vless';
 }
@@ -1139,6 +1154,13 @@ function buildXrayStreamSettings(p){
     if (p.shortId) reality.shortId = p.shortId;
     if (p.spiderX) reality.spiderX = p.spiderX;
     stream.realitySettings = reality;
+  }
+  if (network === 'xhttp') {
+    const xhttp = {path: p.path || '/'};
+    if (p.host) xhttp.host = p.host;
+    if (p.xhttpMode) xhttp.mode = p.xhttpMode;
+    if (p.xhttpExtra && typeof p.xhttpExtra === 'object') xhttp.extra = p.xhttpExtra;
+    stream.xhttpSettings = xhttp;
   }
   if (network === 'ws') {
     const ws = {path: p.path || '/'};
@@ -1220,7 +1242,7 @@ function shouldPersistAsFieldsOnly(p){
 
   // REALITY and plain TCP-sensitive profiles are safer as full embedded Xray JSON.
   if (security === 'reality') return false;
-  if (network === 'tcp') return false;
+  if (network === 'tcp' || network === 'xhttp') return false;
 
   // Real NPV exports commonly keep simple VLESS and simple Trojan WS/TLS profiles
   // as field-based v2rayProfile objects with v2rayJson="" and persistJson=true.
@@ -1455,6 +1477,7 @@ function streamSettingsToProfile(stream={}) {
   const http = stream.httpSettings || {};
   const httpUpgrade = stream.httpupgradeSettings || stream.httpUpgradeSettings || {};
   const splithttp = stream.splithttpSettings || stream.splitHttpSettings || {};
+  const xhttp = stream.xhttpSettings || {};
   const tcp = stream.tcpSettings || {};
   const tcpHeader = tcp.header || {};
   const tcpRequest = tcpHeader.request || {};
@@ -1464,7 +1487,7 @@ function streamSettingsToProfile(stream={}) {
     tls && Object.keys(tls).length ? 'tls' : '',
     'none'
   );
-  const network = normalizeNetworkId(firstValue(stream.network, stream.net, ws.path !== undefined ? 'ws' : '', grpc.serviceName !== undefined ? 'grpc' : '', 'tcp'));
+  const network = normalizeNetworkId(firstValue(stream.network, stream.method, stream.net, ws.path !== undefined ? 'ws' : '', grpc.serviceName !== undefined ? 'grpc' : '', xhttp.path !== undefined ? 'xhttp' : '', 'tcp'));
   return {
     network,
     security,
@@ -1481,9 +1504,12 @@ function streamSettingsToProfile(stream={}) {
       getHeaderValue(httpUpgrade.headers, 'Host', 'host'),
       getHeaderValue(splithttp.headers, 'Host', 'host'),
       getHeaderValue(tcpRequest.headers, 'Host', 'host'),
-      http.host
+      http.host,
+      xhttp.host
     ),
-    path: firstValue(ws.path, http.path, httpUpgrade.path, splithttp.path, tcpRequest.path),
+    path: firstValue(xhttp.path, ws.path, http.path, httpUpgrade.path, splithttp.path, tcpRequest.path),
+    xhttpMode: firstValue(xhttp.mode),
+    xhttpExtra: xhttp.extra && typeof xhttp.extra === 'object' ? xhttp.extra : null,
     serviceName: firstValue(grpc.serviceName),
     authority: firstValue(grpc.authority),
     insecure: !!firstValue(tls.allowInsecure, reality.allowInsecure, stream.allowInsecure)
@@ -1514,12 +1540,28 @@ function outboundToProfiles(outbound, inheritedName='') {
           id: firstValue(user.id, user.uuid, user.password),
           method: firstValue(user.encryption, user.security, user.scy, protocol === 'vless' ? 'none' : 'auto'),
           alterId: firstValue(user.alterId, user.aid, '0'),
-          flow: firstValue(user.flow, common.flow)
+          flow: firstValue(user.flow, common.flow),
+          _sourceStreamSettings: outbound.streamSettings
         });
       }
     }
   }
 
+  // Xray 2026 supports direct fields in VLESS settings in addition to legacy vnext.
+  if (protocol === 'vless' && !Array.isArray(settings.vnext) &&
+      settings.address && settings.port && settings.id) {
+    profiles.push({
+      ...common,
+      protocol: 'vless',
+      name: baseName,
+      server: settings.address,
+      serverPort: settings.port,
+      id: settings.id,
+      method: firstValue(settings.encryption, 'none'),
+      flow: firstValue(settings.flow),
+      _sourceStreamSettings: outbound.streamSettings
+    });
+  }
   if ((protocol === 'trojan' || protocol === 'shadowsocks' || protocol === 'ss' || protocol === 'socks') && Array.isArray(settings.servers)) {
     for (const server of settings.servers) {
       profiles.push({
@@ -1686,6 +1728,8 @@ function normalizedProfile(p, fallbackName='') {
     path: firstValue(p.path, p.requestPath, p.wsPath, streamLike.path),
     serviceName: firstValue(p.serviceName, p.grpcServiceName, streamLike.serviceName),
     authority: firstValue(p.authority, p.grpcAuthority, streamLike.authority),
+    xhttpMode: firstValue(p.xhttpMode, streamLike.xhttpMode),
+    xhttpExtra: p.xhttpExtra || streamLike.xhttpExtra || null,
     flow: firstValue(p.flow, streamLike.flow),
     fp: firstValue(p.fingerPrint, p.fingerprint, p.fp, streamLike.fp),
     publicKey: firstValue(p.publicKey, p.pbk, streamLike.publicKey),
@@ -1826,6 +1870,17 @@ function profileToLink(p, fallbackName='') {
   }
   if (protocol === 'vless') {
     if (!n.id) throw new Error('missing UUID/password');
+    if (n.network === 'xhttp' && p._sourceStreamSettings) {
+      const raw = p._sourceStreamSettings;
+      const allowed = ['network','method','security','xhttpSettings','tlsSettings','realitySettings'];
+      if (Object.keys(raw).some(k => !allowed.includes(k))) {
+        throw new Error('XHTTP extra transport settings require full Xray JSON');
+      }
+      const opts = raw.xhttpSettings || {};
+      if (Object.keys(opts).some(k => !['host','path','mode','extra'].includes(k))) {
+        throw new Error('Unknown XHTTP settings require full Xray JSON');
+      }
+    }
     const q = [];
     addParam(q, 'type', n.network || 'tcp');
     addParam(q, 'encryption', (n.method && n.method !== 'none' && n.method !== 'auto') ? n.method : 'none');
@@ -1838,12 +1893,16 @@ function profileToLink(p, fallbackName='') {
     if (n.shortId) addParam(q, 'sid', n.shortId);
     if (n.spiderX) addParam(q, 'spx', n.spiderX);
     if (n.alpn) addParam(q, 'alpn', n.alpn);
-    if (n.hostHeader && (n.network === 'ws' || n.network === 'httpupgrade' || n.network === 'splithttp')) addParam(q, 'host', n.hostHeader);
+    if (n.hostHeader && (n.network === 'ws' || n.network === 'httpupgrade' || n.network === 'splithttp' || n.network === 'xhttp')) addParam(q, 'host', n.hostHeader);
+    if (n.network === 'xhttp') {
+      addParam(q, 'mode', n.xhttpMode);
+      if (n.xhttpExtra) addParam(q, 'extra', JSON.stringify(n.xhttpExtra));
+    }
     if (n.path) addParam(q, 'path', n.path);
     if (n.serviceName || n.network === 'grpc') addParam(q, 'serviceName', n.serviceName);
     if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
-    return `vless://${enc(n.id)}@${n.host}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
+    return `vless://${enc(n.id)}@${formatUriHost(n.host)}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
   if (protocol === 'vmess') {
     if (!n.id) throw new Error('missing UUID/password');
@@ -2174,7 +2233,16 @@ function processForwardText(){
 
 function isNpvtBuildSupportedLink(link){
   const proto = String(link || '').split('://')[0].toLowerCase();
-  return ['vless','vmess','trojan','ss','shadowsocks','socks'].includes(proto);
+  if (!['vless','vmess','trojan','ss','shadowsocks','socks'].includes(proto)) return false;
+  if (proto === 'vless') {
+    try {
+      const url = new URL(link);
+      if (normalizeNetworkId(url.searchParams.get('type')) === 'xhttp') return false;
+      const encryption = url.searchParams.get('encryption');
+      if (encryption && encryption !== 'none') return false;
+    } catch (_) { return false; }
+  }
+  return true;
 }
 
 function buildReverseFromText(text, source='reverse input'){

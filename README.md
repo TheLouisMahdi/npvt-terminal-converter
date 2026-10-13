@@ -147,6 +147,21 @@ Compatibility tests: `node --test tests/*.test.cjs`. External client/server inte
 
 ---
 
+## VLESS Encryption and XHTTP (2026)
+
+The Xray JSON converter accepts both legacy `settings.vnext[].users[]` and the current `settings.address / port / id / encryption` outbound form. Opaque VLESS Post-Quantum Encryption strings are preserved verbatim in links and generated Xray JSON (they are **not** regenerated or cryptographically validated by this converter).
+
+XHTTP links support `type=xhttp`, `host`, `path`, `mode` (`auto`, `packet-up`, `stream-up`, `stream-one`), and URL-encoded `extra` JSON for `xmux` and `downloadSettings`. `extra` is supported for this converter's round-trip representation; other clients may not understand the same share URI extension, so prefer **native Xray JSON** for maximum compatibility. Unrecognized native XHTTP fields block lossy link generation while preserving the complete source in the full JSON export path.
+
+**NPVT compatibility:** XHTTP and post-quantum VLESS Encryption are **not** exported into NPVT1 until verified with genuine NPV Tunnel imports. The regular VLESS legacy path remains available.
+
+Sources:
+- [Official current Xray VLESS settings](https://xtls.github.io/en/config/outbounds/vless.html)
+- [Xray XHTTP transport](https://xtls.github.io/en/config/transports/xhttp.html)
+- [Official XHTTP upstream/downstream discussion](https://github.com/XTLS/Xray-core/discussions/4113)
+
+---
+
 ## Protocol compatibility and tests
 
 The converter supports standard [AnyTLS share URIs](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md) with password, server, port, SNI, and insecure TLS settings. AnyTLS link inputs export as native sing-box JSON. Basic sing-box AnyTLS outbounds can export to standard share URIs.
