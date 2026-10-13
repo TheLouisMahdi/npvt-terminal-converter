@@ -12,6 +12,10 @@ import urllib.request
 
 SOURCES = (
     "XTLS/Xray-core",
+    "v2fly/v2ray-core",
+    "amnezia-vpn/amneziawg-go",
+    "klzgrad/naiveproxy",
+    "enfein/mieru",
     "SagerNet/sing-box",
     "MetaCubeX/mihomo",
     "HyNetworks/hysteria",
