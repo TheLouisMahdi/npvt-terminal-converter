@@ -888,7 +888,7 @@ function hysteria2PortSegments(spec, toSingBox=false){
     if (!m) throw new Error('invalid Hysteria2 port range');
     const start = Number(m[1]), end = m[2] ? Number(m[2]) : start;
     if (start < 1 || end > 65535 || start > end) throw new Error('invalid Hysteria2 port range');
-    return m[2] ? `${start}${toSingBox ? ':' : '-'}${end}` : String(start);
+    return toSingBox ? `${start}:${end}` : (start === end ? String(start) : `${start}-${end}`);
   });
 }
 
@@ -936,7 +936,7 @@ function parseHysteria2Share(link){
     };
   } else {
     const ports = hysteria2PortSegments(u.portSpec || '443', true);
-    if (ports.length === 1 && !ports[0].includes(':')) outbound.server_port = Number(ports[0]);
+    if (ports.length === 1 && /^\d+$/.test(u.portSpec || '443')) outbound.server_port = Number(u.portSpec || 443);
     else outbound.server_ports = ports;
     outbound.server = u.host;
   }
@@ -1044,9 +1044,7 @@ function buildSingBoxConfigFromOutbound(outbound, name='Proxy Config'){
       type: 'mixed',
       tag: 'mixed-in',
       listen: '127.0.0.1',
-      listen_port: 2080,
-      sniff: true,
-      set_system_proxy: false
+      listen_port: 2080
     }],
     outbounds: [
       clean,
@@ -1061,12 +1059,11 @@ function linkItemToSingBoxJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   const proto = String(link.split('://')[0] || '').toLowerCase();
   let parsed;
-  if (proto === 'hysteria2' || proto === 'hy2' || proto === 'hysteria') parsed = parseHysteria2Share(link);
+  if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http'].includes(proto)) parsed = parseHysteria2Share(link);
   else if (proto === 'tuic') parsed = parseTuicShare(link);
   else if (proto === 'anytls') parsed = parseAnytlsShare(link);
   else throw new Error('not a sing-box URI');
   const obj = buildSingBoxConfigFromOutbound(parsed.outbound, parsed.name || `Config ${index + 1}`);
-  obj.remarks = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   return obj;
 }
 function linkToNpvParsedProfile(link){
@@ -2359,7 +2356,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   const link = String((item && item.link) || item || '').trim();
   if (!link) throw new Error('empty link');
   const proto = String(link.split('://')[0] || '').toLowerCase();
-  if (['hysteria2','hy2','hysteria','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
+  if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;

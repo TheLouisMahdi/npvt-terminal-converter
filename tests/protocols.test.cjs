@@ -103,19 +103,19 @@ test('Hysteria2 Gecko with port hopping maps to valid sing-box port ranges', () 
   assert.equal(parsed.outbound.type, 'hysteria2');
   assert.equal(parsed.outbound.password, 'p@ss');
   assert.equal(parsed.outbound.server, 'example.org');
-  assert.deepEqual(parsed.outbound.server_ports, ['123', '5000:6000']);
+  assert.deepEqual(parsed.outbound.server_ports, ['123:123', '5000:6000']);
   assert.equal(parsed.outbound.obfs.type, 'gecko');
   assert.equal(parsed.outbound.obfs.password, 'mask');
   assert.equal(parsed.outbound.tls.server_name, 'cdn.example');
   const native = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(source)}})`);
   assert.equal(native.outbounds[0].type, 'hysteria2');
-  assert.deepEqual(native.outbounds[0].server_ports, ['123', '5000:6000']);
+  assert.deepEqual(native.outbounds[0].server_ports, ['123:123', '5000:6000']);
 });
 
 test('Basic sing-box Hysteria2 JSON converts to URI with working Gecko options', () => {
   const outbound = {
     type: 'hysteria2', tag: 'node', password: 'secret',
-    server: 'example.org', server_ports: ['443', '5000:6000'],
+    server: 'example.org', server_ports: ['443:443', '5000:6000'],
     tls: {enabled: true, server_name: 'cdn.example', insecure: false},
     obfs: {type: 'gecko', password: 'mask'}
   };
@@ -125,7 +125,7 @@ test('Basic sing-box Hysteria2 JSON converts to URI with working Gecko options',
   assert.match(converted.links[0].link, /443,5000-6000/);
   const parsed = json(`parseHysteria2Share(${JSON.stringify(converted.links[0].link)})`);
   assert.equal(parsed.outbound.obfs.type, 'gecko');
-  assert.deepEqual(parsed.outbound.server_ports, ['443', '5000:6000']);
+  assert.deepEqual(parsed.outbound.server_ports, ['443:443', '5000:6000']);
 });
 
 test('Hysteria2 Realm URI uses rendezvous token and separate auth', () => {

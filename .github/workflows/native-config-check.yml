@@ -1,0 +1,29 @@
+name: Native sing-box config validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-sing-box:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/export_fixture_configs.cjs
+      - name: Check generated JSON with sing-box 1.14.2
+        run: |
+          image="ghcr.io/sagernet/sing-box:v1.14.2@sha256:afbffd294c5eb3519cc7b4587299ef189bb0a2ca2f667cb6301fdb6b9bce9558"
+          docker pull "$image"
+          for file in tests/generated/*.json; do
+            echo "Checking $file"
+            docker run --rm --network none -v "$PWD/tests/generated:/checks:ro" "$image" check -c "/checks/${file##*/}"
+          done
