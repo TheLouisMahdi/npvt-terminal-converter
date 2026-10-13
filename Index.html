@@ -450,16 +450,16 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
     </section>
 
     <section class="panel" id="nativeTools">
-      <h2>05 — Native formats: Mihomo, TrustTunnel and WireGuard</h2>
-      <p>Convert Mihomo YAML/JSON, WireGuard INI or TrustTunnel v2 deep links. Native proxy settings are preserved; unsupported mappings are reported.</p>
+      <h2>05 — Native formats: Mihomo, NetMod, TrustTunnel and WireGuard</h2>
+      <p>Convert Mihomo YAML/JSON, WireGuard INI and TrustTunnel v2 links. Open NetMod .nm files to recover their original SSH/Proxy JSON. NPVS v5 files are inspected locally; protected content needs its creator passphrase.</p>
       <div class="native-toolbar">
         <button class="btn secondary" type="button" id="nativeChoose">Open config file</button>
-        <input type="file" id="nativeFile" accept=".yaml,.yml,.json,.ini,.conf,.txt">
+        <input type="file" id="nativeFile" accept=".yaml,.yml,.json,.ini,.conf,.txt,.nm,.npvs">
         <span class="native-note">Local only · 1 MB limit · No upload</span>
       </div>
       <div class="panes">
         <div>
-          <label class="input-label" for="nativeInput">Mihomo YAML / JSON / WireGuard INI</label>
+          <label class="input-label" for="nativeInput">Mihomo YAML / JSON / WireGuard INI / NetMod JSON</label>
           <textarea id="nativeInput" spellcheck="false" placeholder='proxies:&#10;  - name: "TrustTunnel"&#10;    type: trusttunnel&#10;    server: example.org&#10;    port: 443&#10;    username: user&#10;    password: secret'></textarea>
         </div>
         <div>
@@ -3521,6 +3521,72 @@ function mihomoToTt(obj){
   return {type:'trusttunnel-deeplink',version:2,hostname:p.sni||server,addresses:[address],username:p.username,password:p.password,name:p.name,upstream_protocol:p.quic?'http3':'http2',skip_verification:!!p['skip-cert-verify']};
 }
 
+
+/* Legacy encrypted-file adapters. Read locally. Never infer V2Ray from SSH fields. */
+const NETMOD_COMPAT_KEYS = [
+  '<n3t5yn4^n3tm0d>', '_netsyna_netmod_', 'nicetrybuddygoon'
+];
+async function decryptNetMod(bytes){
+  if(!(bytes instanceof Uint8Array)) bytes=new Uint8Array(bytes);
+  if(!bytes.length || bytes.length>1048576)throw new Error('Invalid NetMod file size');
+  const encoded=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/\s+/g,'');
+  if(!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw new Error('Invalid NetMod Base64 encoding');
+  const cipher=b64ToBytes(encoded);
+  if(!cipher.length||cipher.length%16!==0)throw new Error('NetMod AES-ECB ciphertext is not block-aligned');
+  const iv=new Uint8Array(16);
+  for(const secret of NETMOD_COMPAT_KEYS){
+    const key=await crypto.subtle.importKey('raw',textToBytes(secret),{name:'AES-CBC'},false,['encrypt','decrypt']);
+    try{
+      // WebCrypto does not expose ECB. Append a valid CBC padding block, decrypt once,
+      // and remove CBC chaining to recover each raw AES-decrypted ECB block.
+      const tail=cipher.slice(-16);
+      const suffix=new Uint8Array(await crypto.subtle.encrypt({name:'AES-CBC',iv:tail},key,new Uint8Array()));
+      const padded=new Uint8Array(cipher.length+suffix.length);
+      padded.set(cipher);padded.set(suffix,cipher.length);
+      const chained=new Uint8Array(await crypto.subtle.decrypt({name:'AES-CBC',iv},key,padded));
+      if(chained.length!==cipher.length)continue;
+      const clear=new Uint8Array(cipher.length);
+      for(let j=0;j<cipher.length;j++)clear[j]=chained[j]^(j>=16?cipher[j-16]:0);
+      const pad=clear[clear.length-1];
+      if(pad<1||pad>16)continue;
+      if(!clear.slice(-pad).every(v=>v===pad))continue;
+      const decoded=new TextDecoder('utf-8',{fatal:true}).decode(clear.slice(0,-pad));
+      const config=JSON.parse(decoded);
+      if(!config || typeof config!=='object' || Array.isArray(config))continue;
+      if(!['SSH','Proxy','Payload','SNI'].some(k=>Object.prototype.hasOwnProperty.call(config,k)))continue;
+      return config;
+    }catch(_){ /* try the next published legacy key generation */ }
+  }
+  throw new Error('NetMod decryption failed: unsupported key generation or invalid/corrupted file');
+}
+function inspectNpvsV5(bytes){
+  if(!(bytes instanceof Uint8Array))bytes=new Uint8Array(bytes);
+  if(bytes.length<160||String.fromCharCode(...bytes.slice(0,4))!=='NPVS'){
+    throw new Error('Not an NPVS binary envelope');
+  }
+  const version=bytes[4];
+  if(version!==5)throw new Error('NPVS version '+version+' requires a separate format adapter');
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const headerLength=view.getUint32(5,false);
+  if(headerLength<135||9+headerLength+16+64>bytes.length)throw new Error('Malformed NPVS header size');
+  const header=bytes.subarray(9,9+headerLength);
+  if(header[0]!==1)throw new Error('Unsupported NPVS v5 header revision');
+  const method=header[50],recipients=(header[51]<<8)|header[52];
+  if(![0,1,2].includes(method))throw new Error('Unknown NPVS unlocking method');
+  const keySectionEnd=53+recipients*(32+93);
+  const methodLength=method===1?80:method===2?78:0;
+  const metaOffset=keySectionEnd+methodLength;
+  if(metaOffset+4>header.length)throw new Error('Truncated NPVS key or metadata section');
+  const iterations=method===1?new DataView(header.buffer,header.byteOffset,header.byteLength).getUint32(keySectionEnd,false):0;
+  if(method===1 && (iterations<1||iterations>10000000))throw new Error('Invalid NPVS PBKDF2 iteration count');
+  const metaLength=new DataView(header.buffer,header.byteOffset,header.byteLength).getUint32(metaOffset,false);
+  if(metaLength<16||metaOffset+4+metaLength>header.length)throw new Error('Malformed NPVS encrypted metadata');
+  const bodyOffset=9+headerLength;
+  const bodyLength=view.getUint32(bodyOffset+12,false);
+  if(bodyLength<32||bodyOffset+16+bodyLength+64!==bytes.length)throw new Error('Malformed NPVS ciphertext length');
+  return {format:'NPVS',version,unlock:method===0?'recipient-private-key':method===1?'creator-passphrase':'app-key',recipients,iterations:iterations||undefined,bytes:bytes.length,encrypted:true};
+}
+
 function nativeFormatConvert(input, target){
   const text=String(input||'').trim();
   if(!text)throw new Error('Native input is empty');
@@ -3588,9 +3654,29 @@ $('nativeFile').addEventListener('change',async()=>{
   nativeOutputControls();
   if(file.size>1048576){$('nativeLog').textContent='File exceeds the 1 MB limit.';return;}
   try{
-    $('nativeInput').value=await file.text();
-    $('nativeLog').textContent='Loaded '+file.name+'. Select an output format.';
-  }catch(_){$('nativeLog').textContent='Could not read the selected file.';}
+    if(/\.nm$/i.test(file.name)){
+      const config=await decryptNetMod(new Uint8Array(await file.arrayBuffer()));
+      const json=JSON.stringify(config,null,2);
+      $('nativeInput').value=json;
+      $('nativeOutput').value=json;
+      nativeOutputFormat='json';
+      $('nativeLog').textContent='NetMod decrypted locally. Original SSH/Proxy JSON preserved; not automatically converted into V2Ray.';
+      nativeOutputControls();
+    }else if(/\.npvs$/i.test(file.name)){
+      const header=inspectNpvsV5(new Uint8Array(await file.arrayBuffer()));
+      $('nativeInput').value='';
+      $('nativeLog').textContent='NPVS v'+header.version+' detected; unlock: '+header.unlock+'. Encrypted fields cannot be converted without the required unlock key. No data was decrypted.';
+    }else{
+      $('nativeInput').value=await file.text();
+      $('nativeLog').textContent='Loaded '+file.name+'. Select an output format.';
+    }
+  }catch(e){
+    $('nativeInput').value='';
+    $('nativeOutput').value='';
+    nativeOutputFormat='';
+    nativeOutputControls();
+    $('nativeLog').textContent='Import failed: '+(e.message||String(e));
+  }
 });
 $('nativeDownload').addEventListener('click',()=>{
   const value=$('nativeOutput').value;
