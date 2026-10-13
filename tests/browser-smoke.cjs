@@ -40,7 +40,7 @@ async function run() {
       assert.equal(await page.locator('#nativeDownload').isEnabled(),true);
       assert.equal(await page.locator('#nativeCopy').isEnabled(),true);
       await page.locator('#nativeCopy').click();
-      assert.match(await page.locator('#nativeLog').innerText(),/Output copied\.|Clipboard unavailable/);
+      await page.waitForFunction(() => /Output copied\.|Clipboard unavailable/.test(document.getElementById('nativeLog').textContent), null, {timeout:8000});
       const download=page.waitForEvent('download');
       await page.locator('#nativeDownload').click();
       assert.match((await download).suggestedFilename(),/\.yaml$/);
