@@ -844,7 +844,7 @@ function hysteria2PortSegments(spec, toSingBox=false){
   const parts = String(spec || '443').split(',');
   if (!parts.length || parts.some(p => !p.trim())) throw new Error('invalid Hysteria2 port list');
   return parts.map(part => {
-    const m = part.trim().match(/^(\\d+)(?:[:-](\\d+))?$/);
+    const m = part.trim().match(/^(\d+)(?:[:-](\d+))?$/);
     if (!m) throw new Error('invalid Hysteria2 port range');
     const start = Number(m[1]), end = m[2] ? Number(m[2]) : start;
     if (start < 1 || end > 65535 || start > end) throw new Error('invalid Hysteria2 port range');
