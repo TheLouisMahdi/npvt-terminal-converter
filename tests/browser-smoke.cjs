@@ -39,6 +39,8 @@ async function run() {
       assert.match(await page.locator('#nativeOutput').inputValue(),/proxies:/);
       assert.equal(await page.locator('#nativeDownload').isEnabled(),true);
       assert.equal(await page.locator('#nativeCopy').isEnabled(),true);
+      await page.locator('#nativeCopy').click();
+      assert.match(await page.locator('#nativeLog').innerText(),/Output copied\.|Clipboard unavailable/);
       const download=page.waitForEvent('download');
       await page.locator('#nativeDownload').click();
       assert.match((await download).suggestedFilename(),/\.yaml$/);
