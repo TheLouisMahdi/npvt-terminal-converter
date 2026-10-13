@@ -3612,9 +3612,14 @@ $('nativeDownload').addEventListener('click',()=>{
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
-$('nativeCopy').addEventListener('click',()=>{
+$('nativeCopy').addEventListener('click',async()=>{
   if(!$('nativeOutput').value)return;
-  navigator.clipboard.writeText($('nativeOutput').value).then(()=>{$('nativeLog').textContent='Output copied.';}).catch(()=>{$('nativeLog').textContent='Copy unavailable. Select and copy output manually.';});
+  try{
+    await copyText($('nativeOutput').value);
+    $('nativeLog').textContent='Output copied.';
+  }catch(_){
+    $('nativeLog').textContent='Clipboard unavailable. Select and copy the output manually.';
+  }
 });
 document.addEventListener('drop',e=>e.preventDefault());
 
