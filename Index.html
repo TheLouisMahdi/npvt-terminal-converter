@@ -1427,7 +1427,7 @@ function extractRawLinks(text) {
   // Important: match only when the scheme starts at a real boundary.
   // Without the boundary, "wss://[host]/" inside Xray WebSocket headers can be
   // misread as a fake "ss://[host]/" Shadowsocks link.
-  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|anytls|wireguard):\/\/[^\s"'<>]+)/gi;
+  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|anytls|tt|wireguard):\/\/[^\s"'<>]+)/gi;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const link = cleanExtractedUri(m[2]);
@@ -2469,6 +2469,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   const proto = String(link.split('://')[0] || '').toLowerCase();
   if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   if (proto === 'ss' && /[?&]plugin=/.test(link.split('#')[0])) return shadowsocksPluginToSingBox(link, index);
+  if (proto === 'tt') return ttToMihomo(parseTrustTunnelDeepLink(link));
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
