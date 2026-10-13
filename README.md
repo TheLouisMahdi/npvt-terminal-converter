@@ -170,6 +170,16 @@ Shadowsocks 2022 URIs follow SIP022 percent-encoded credentials. SIP003 plugin l
 
 ---
 
+## Native Mihomo YAML, TrustTunnel links, and AmneziaWG
+
+The offline HTML app now includes a **Mihomo / Clash YAML and AmneziaWG** section. It handles native Snell, TrustTunnel, ShadowQUIC, Mieru, and WireGuard/AmneziaWG v3.1 config nodes through YAML/JSON conversion. It also supports WireGuard client INI import/export and TrustTunnel official `tt://?` v2 binary deep-link decoding/encoding.
+
+These adapters **preserve native protocol types** and reject unsupported fields rather than fabricating VLESS or NPVT links. The YAML reader supports plain mappings and sequences; advanced YAML anchors, tags, and block scalars are explicitly unsupported. Validity is checked with `mihomo -t` on representative samples, but real handshakes still need live testing.
+
+Detailed support boundaries: [Native format adapters](docs/NATIVE_FORMATS.md).
+
+---
+
 ## Protocol compatibility and tests
 
 The converter supports standard [AnyTLS share URIs](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md) with password, server, port, SNI, and insecure TLS settings. AnyTLS link inputs export as native sing-box JSON. Basic sing-box AnyTLS outbounds can export to standard share URIs.
