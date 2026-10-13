@@ -185,3 +185,19 @@ test('Hysteria2 invalid ports and missing sing-box Realm STUN settings are repor
   assert.throws(() => run("parseHysteria2Share('hysteria2+realm://token@r.example/room?auth=p')"), /requires explicit stun/);
   assert.throws(() => run("parseHysteria2Share('hysteria2+realm://token@r.example/room?auth=p&stun=stun.example&lport=1234')"), /lport/);
 });
+
+
+test('Advanced native Hysteria2 JSON survives the full-configuration export path', () => {
+  const original = {outbounds: [{
+    type: 'hysteria2', tag: 'advanced', server: 'host.example',
+    server_port: 443, password: 'secret', tls: {enabled: true},
+    hop_interval_max: '60s', bbr_profile: 'aggressive',
+    obfs: {type: 'gecko', password: 'key', min_packet_size: 512}
+  }]};
+  const encoded = JSON.stringify(JSON.stringify(original));
+  const output = json(`linksTextToSeparatedJson(${encoded})`);
+  assert.equal(output.fullJson, 1);
+  assert.equal(output.objects[0].object.outbounds[0].hop_interval_max, '60s');
+  assert.equal(output.objects[0].object.outbounds[0].bbr_profile, 'aggressive');
+  assert.equal(output.objects[0].object.outbounds[0].obfs.min_packet_size, 512);
+});
