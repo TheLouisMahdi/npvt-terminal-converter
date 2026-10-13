@@ -436,6 +436,7 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
           <button class="btn primary" type="button" id="nativeToYaml">→ Mihomo YAML</button>
           <button class="btn secondary" type="button" id="nativeToJson">→ Native JSON</button>
           <button class="btn secondary" type="button" id="nativeToIni">→ WireGuard INI</button>
+          <button class="btn secondary" type="button" id="nativeToTt">→ TT deep link</button>
           <button class="btn secondary" type="button" id="nativeCopy">Copy</button>
           <button class="btn bad" type="button" id="nativeClear">Clear</button>
         </div>
@@ -3339,14 +3340,139 @@ function wireGuardToIni(input){
   }
   return lines.join('\n')+'\n';
 }
+
+/* TrustTunnel deep-link v2: official QUIC varint TLV specification. */
+function ttVarintRead(bytes,state){
+  if(state.pos>=bytes.length)throw new Error('Truncated TrustTunnel varint');
+  const first=bytes[state.pos++],width=1<<(first>>6);
+  if(state.pos+width-1>bytes.length)throw new Error('Truncated TrustTunnel varint');
+  let value=BigInt(first&63);
+  for(let i=1;i<width;i++)value=(value<<8n)|BigInt(bytes[state.pos++]);
+  if(value>BigInt(Number.MAX_SAFE_INTEGER))throw new Error('TrustTunnel varint exceeds safe integer');
+  return Number(value);
+}
+function ttVarintWrite(v){
+  if(!Number.isSafeInteger(v)||v<0)throw new Error('Invalid TrustTunnel varint');
+  const size=v<64?1:v<16384?2:v<1073741824?4:8;
+  let num=BigInt(v),out=Array(size).fill(0);
+  for(let i=size-1;i>=0;i--){out[i]=Number(num&255n);num>>=8n;}
+  out[0]|=size===1?0:size===2?64:size===4?128:192;
+  return out;
+}
+function ttDecodeString(bytes){return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+function parseTrustTunnelDeepLink(link){
+  const text=String(link||'').trim();
+  if(!/^tt:\/\/\?[A-Za-z0-9_-]{1,16384}$/.test(text))throw new Error('Invalid TrustTunnel tt://? deep link');
+  const data=b64ToBytes(text.slice(6));
+  if(data.length>12288)throw new Error('TrustTunnel payload is too large');
+  const state={pos:0},doc={type:'trusttunnel-deeplink',version:0,addresses:[]},unknown=[];
+  const strings={1:'hostname',3:'custom_sni',5:'username',6:'password',11:'client_random_prefix',12:'name',14:'subscription_url',15:'client_random_auth_key'};
+  const booleans={4:'has_ipv6',7:'skip_verification',10:'anti_dpi'};
+  while(state.pos<data.length){
+    const tag=ttVarintRead(data,state),length=ttVarintRead(data,state);
+    if(length>data.length-state.pos)throw new Error('Invalid TrustTunnel TLV length');
+    const value=data.slice(state.pos,state.pos+length);state.pos+=length;
+    if(tag===0||tag===9){
+      const fieldState={pos:0},n=ttVarintRead(value,fieldState);
+      if(fieldState.pos!==value.length)throw new Error('Malformed TrustTunnel integer');
+      if(tag===0)doc.version=n;
+      else {if(n!==1&&n!==2)throw new Error('Unsupported TrustTunnel upstream protocol');doc.upstream_protocol=n===2?'http3':'http2';}
+    }else if(tag===2)doc.addresses.push(ttDecodeString(value));
+    else if(strings[tag])doc[strings[tag]]=ttDecodeString(value);
+    else if(booleans[tag]){
+      if(length!==1||value[0]>1)throw new Error('Invalid TrustTunnel boolean');
+      doc[booleans[tag]]=!!value[0];
+    }else if(tag===8)doc.certificate_base64=bytesToBase64(value);
+    else if(tag===13){
+      let cursor={pos:0},dns=[];
+      while(cursor.pos<value.length){const len=ttVarintRead(value,cursor);
+        if(len>value.length-cursor.pos)throw new Error('Malformed TrustTunnel DNS array');
+        dns.push(ttDecodeString(value.slice(cursor.pos,cursor.pos+len)));cursor.pos+=len;
+      }
+      doc.dns_upstreams=dns;
+    }else unknown.push({tag,data:bytesToBase64(value)});
+  }
+  if(doc.version>2)throw new Error('Unsupported TrustTunnel deep link version');
+  if(doc.subscription_url&&!doc.subscription_url.startsWith('https://'))throw new Error('TrustTunnel subscription must use HTTPS');
+  if(!doc.subscription_url&&(!doc.hostname||!doc.addresses.length||!doc.username||!doc.password))throw new Error('Incomplete TrustTunnel static credentials');
+  if(unknown.length)doc.unknown_tlvs=unknown;
+  return doc;
+}
+function encodeTrustTunnelDeepLink(doc){
+  if(!doc||doc.type!=='trusttunnel-deeplink')throw new Error('Expected a TrustTunnel deep-link object');
+  const allowed=new Set(['type','version','hostname','addresses','custom_sni','has_ipv6','username','password','skip_verification','certificate_base64','upstream_protocol','anti_dpi','client_random_prefix','name','dns_upstreams','subscription_url','client_random_auth_key','unknown_tlvs']);
+  for(const key of Object.keys(doc))if(!allowed.has(key))throw new Error('Unknown TrustTunnel field '+key);
+  if(doc.subscription_url&&!String(doc.subscription_url).startsWith('https://'))throw new Error('TrustTunnel subscription must use HTTPS');
+  if(!doc.subscription_url&&(!doc.hostname||!Array.isArray(doc.addresses)||!doc.addresses.length||!doc.username||!doc.password))throw new Error('Incomplete TrustTunnel credentials');
+  const chunks=[];
+  function add(tag,bytes){const values=Array.from(bytes);chunks.push(...ttVarintWrite(tag),...ttVarintWrite(values.length),...values);}
+  function str(tag,value){if(value!==undefined&&value!==null&&value!=='')add(tag,textToBytes(String(value)));}
+  function bool(tag,value){if(value!==undefined)add(tag,[value?1:0]);}
+  add(0,ttVarintWrite(2));
+  str(1,doc.hostname);
+  for(const address of doc.addresses||[])str(2,address);
+  str(3,doc.custom_sni);bool(4,doc.has_ipv6);
+  str(5,doc.username);str(6,doc.password);bool(7,doc.skip_verification);
+  if(doc.certificate_base64)add(8,b64ToBytes(doc.certificate_base64));
+  if(doc.upstream_protocol){
+    if(!['http2','http3'].includes(doc.upstream_protocol))throw new Error('Unknown TrustTunnel transport');
+    add(9,ttVarintWrite(doc.upstream_protocol==='http3'?2:1));
+  }
+  bool(10,doc.anti_dpi);str(11,doc.client_random_prefix);
+  str(12,doc.name);
+  if(doc.dns_upstreams){
+    if(!Array.isArray(doc.dns_upstreams))throw new Error('Invalid TrustTunnel DNS upstreams');
+    const serialized=[];
+    for(const address of doc.dns_upstreams){const bytes=textToBytes(String(address));serialized.push(...ttVarintWrite(bytes.length),...bytes);}
+    add(13,serialized);
+  }
+  str(14,doc.subscription_url);str(15,doc.client_random_auth_key);
+  for(const unknown of doc.unknown_tlvs||[]){
+    if(!Number.isSafeInteger(unknown.tag)||unknown.tag<16)throw new Error('Invalid unknown TrustTunnel tag');
+    add(unknown.tag,b64ToBytes(unknown.data));
+  }
+  if(chunks.length>12288)throw new Error('TrustTunnel payload exceeds size limit');
+  return 'tt://?'+bytesToBase64(Uint8Array.from(chunks)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
+}
+function ttToMihomo(doc){
+  const unsupported=['certificate_base64','anti_dpi','client_random_prefix','dns_upstreams','subscription_url','client_random_auth_key','unknown_tlvs'];
+  for(const field of unsupported)if(doc[field]!==undefined && doc[field]!==false)throw new Error('TrustTunnel '+field+' cannot be represented in Mihomo YAML; keep original TT JSON');
+  if(doc.has_ipv6===false)throw new Error('TrustTunnel IPv6 policy cannot be represented in Mihomo');
+  if(!Array.isArray(doc.addresses)||doc.addresses.length!==1)throw new Error('TrustTunnel multiple addresses require original deep-link format');
+  const match=doc.addresses[0].match(/^(?:\[([^\]]+)\]|([^:]+)):(\d+)$/);
+  if(!match||Number(match[3])<1||Number(match[3])>65535)throw new Error('Invalid TrustTunnel address:port');
+  const node={name:doc.name||'TrustTunnel',type:'trusttunnel',server:match[1]||match[2],port:Number(match[3]),username:doc.username,password:doc.password};
+  if(doc.custom_sni||doc.hostname)node.sni=doc.custom_sni||doc.hostname;
+  if(doc.skip_verification!==undefined)node['skip-cert-verify']=doc.skip_verification;
+  if(doc.upstream_protocol==='http3')node.quic=true;
+  return validateMihomoNodes({proxies:[node]});
+}
+function mihomoToTt(obj){
+  const p=obj&&obj.proxies&&obj.proxies[0];
+  if(!p||obj.proxies.length!==1||p.type!=='trusttunnel')throw new Error('TT link requires one TrustTunnel node');
+  const allowed=new Set(['name','type','server','port','username','password','sni','skip-cert-verify','quic']);
+  for(const key of Object.keys(p))if(!allowed.has(key))throw new Error('Mihomo '+key+' has no TrustTunnel deep-link mapping');
+  const server=String(p.server);
+  const address=(server.includes(':')?'['+server+']':server)+':'+p.port;
+  return {type:'trusttunnel-deeplink',version:2,hostname:p.sni||server,addresses:[address],username:p.username,password:p.password,name:p.name,upstream_protocol:p.quic?'http3':'http2',skip_verification:!!p['skip-cert-verify']};
+}
+
 function nativeFormatConvert(input, target){
   const text=String(input||'').trim();
   if(!text)throw new Error('Native input is empty');
   let value;
-  if(/^\[Interface\]/im.test(text))value=parseWireGuardIni(text);
+  if(text.startsWith('tt://?'))value=parseTrustTunnelDeepLink(text);
+  else if(/^\[Interface\]/im.test(text))value=parseWireGuardIni(text);
   else if(/^[\[{]/.test(text)){try{value=JSON.parse(text);}catch(_){value=parseMihomoYaml(text);}}
   else value=parseMihomoYaml(text);
+  if(value && value.type==='trusttunnel-deeplink'){
+    if(target==='tt')return encodeTrustTunnelDeepLink(value);
+    if(target==='json')return JSON.stringify(value,null,2);
+    if(target==='yaml')return dumpMihomoYaml(ttToMihomo(value));
+    throw new Error('INI export is not supported for TrustTunnel');
+  }
   if(Array.isArray(value))value={proxies:value};
+  if(target==='tt')return encodeTrustTunnelDeepLink(mihomoToTt(validateMihomoNodes(value)));
   value=validateMihomoNodes(value);
   if(target==='json')return JSON.stringify(value,null,2);
   if(target==='yaml')return dumpMihomoYaml(value);
@@ -3371,6 +3497,7 @@ document.addEventListener('dragover',e=>e.preventDefault());
 $('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
 $('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
 $('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));
+$('nativeToTt').addEventListener('click',()=>runNativeFormat('tt'));
 $('nativeClear').addEventListener('click',()=>{$('nativeInput').value='';$('nativeOutput').value='';$('nativeLog').textContent='Ready.';});
 $('nativeCopy').addEventListener('click',()=>{
   if(!$('nativeOutput').value)return;
