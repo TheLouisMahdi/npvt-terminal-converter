@@ -53,7 +53,7 @@ async function run() {
         name:'sample.yaml',mimeType:'text/plain',
         buffer:Buffer.from('proxies:\n- name: Snell\n  type: snell\n  server: example.org\n  port: 443\n  psk: pass\n')
       });
-      assert.match(await page.locator('#nativeInput').inputValue(),/proxies:/);
+      await page.waitForFunction(() => document.getElementById('nativeInput').value.includes('proxies:'), null, {timeout:10000});
       await page.locator('#nativeToJson').click();
       assert.equal(JSON.parse(await page.locator('#nativeOutput').inputValue()).proxies[0].type,'snell');
       await page.locator('#nativeClear').click();
