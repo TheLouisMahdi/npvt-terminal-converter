@@ -78,6 +78,16 @@ async function run() {
       }));
       await page.locator('#jsonToLinks').click();
       assert.match(await page.locator('#jsonOutput').inputValue(),/vless:\/\//);
+      await page.locator('#nativeInput').fill(native);
+      await page.locator('#nativeToYaml').click();
+      await page.locator('#nativeTools').scrollIntoViewIfNeeded();
+      await page.screenshot({path:path.join(capture,'native-'+viewport.label+'.png'),animations:'disabled'});
+      await page.locator('#nativeClear').click();
+      await page.locator('#clearForward').click();
+      await page.locator('#clearReverse').click();
+      await page.locator('#clearJsonTools').click();
+      await page.evaluate(() => window.scrollTo({top:0,behavior:'instant'}));
+      await page.waitForTimeout(90);
       await page.screenshot({path:path.join(capture,viewport.label+'.png'),fullPage:true,animations:'disabled'});
       assert.deepEqual(errors,[],viewport.label+' JavaScript errors');
       console.log('PASS '+viewport.label+': responsive navigation, native formats, file import, download, TT, NPVT, Xray JSON, error handling');
