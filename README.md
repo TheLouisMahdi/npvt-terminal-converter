@@ -124,6 +124,9 @@ flowchart LR
 
     J[Links / NPVT / TXT] --> K[Profile normalizer]
     K --> L[Separate JSON configs]
+
+    M[Mihomo YAML / WG INI / TT v2] --> N[Native format adapter]
+    N --> O[Native YAML / JSON / INI / TT link]
 ```
 
 <div align="center">
@@ -146,17 +149,27 @@ The app includes five conversion workspaces plus a results table:
 
 ## Supported Protocol Families
 
-The converter is focused on V2Ray/Xray-compatible profile families commonly used by NPV Tunnel-style clients.
+**Supported** below means the documented mapping is available, not that every option or live connection has been tested. Core checks validate representative generated configurations.
 
-| Protocol | Link parsing | NPVT export | JSON import | JSON export | Notes |
-|---|---:|---:|---:|---:|---|
-| VLESS | Yes | Yes | Yes | Yes | TLS, REALITY, WS, gRPC, TCP, flow-aware |
-| VMess | Yes | Yes | Yes | Yes | Standard Base64 `vmess://` payload parser |
-| Trojan | Yes | Yes | Yes | Yes | Preserves password, TLS, SNI, WS/TCP fields |
-| Shadowsocks | Yes | Yes | Yes | Yes | SIP002-style `ss://` parser |
-| SOCKS | Yes | Yes | Partial | Yes | Basic SOCKS profile mapping |
-| AnyTLS | Yes | No | Standard URI fields only | Yes (sing-box JSON) | Advanced session/TLS options require full JSON; not NPVT1 |
-| Base64 subscriptions | Yes | Extracts links | N/A | N/A | Decodes and scans supported links |
+| Protocol | Share/deep link | Native output | NPVT1 export | Core test |
+| --- | --- | --- | --- | --- |
+| VLESS | vless:// import/export, with restrictions | Xray JSON | Legacy subset only | Xray |
+| VMess | vmess:// Base64 import/export | Xray JSON | Legacy subset | Xray |
+| Trojan | trojan:// import/export | Xray JSON | Legacy subset | Xray |
+| Shadowsocks / SS2022 | ss://, SIP002/022 and supported SIP003 plugins | Xray or sing-box JSON | Plain legacy subset; plugins excluded | Xray / sing-box |
+| SOCKS | socks:// basic credentials | Xray JSON | Basic legacy subset | Xray |
+| AnyTLS | anytls:// basic settings | sing-box JSON | No | sing-box |
+| Hysteria2 (Gecko/Realm/ECH) | hy2://, hysteria2:// and Realm variants, with restrictions | sing-box JSON | No | sing-box (Gecko/Realm fixtures) |
+| TUIC | tuic:// import | sing-box JSON | No | sing-box |
+| TrustTunnel | tt://? v2 TLV codec | Mihomo YAML/JSON when lossless | No | Mihomo |
+| Snell | No universal share URI | Mihomo YAML/JSON | No | Mihomo |
+| ShadowQUIC | No verified general URI mapping | Mihomo YAML/JSON | No | Mihomo |
+| Mieru | No verified general URI mapping | Mihomo YAML/JSON | No | Mihomo |
+| WireGuard / AmneziaWG 3.1 | Client INI (not generic wireguard:// links) | Mihomo YAML/JSON and INI | No | Mihomo |
+| Base64 subscriptions | Scans supported links | Extracted profiles | Eligible links only | Unit/browser |
+| Juicity / NaiveProxy / MASQUE | No complete adapter | Not implemented | No | Not tested |
+
+Only the documented **subset** of Mihomo YAML is parsed. Complex anchors, aliases and templates are rejected; use a full YAML parser for those inputs. Unknown transport and security options are rejected where they cannot be represented without loss.
 
 ---
 
