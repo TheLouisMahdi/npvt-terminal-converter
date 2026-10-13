@@ -71,3 +71,51 @@ test('Unsupported WireGuard system scripts and DNS never disappear silently',()=
 test('Unsupported native YAML proxy type rejected with explicit message',()=>{
  assert.throws(()=>vm.runInContext('nativeFormatConvert('+JSON.stringify('proxies:\n  - name: new\n    type: juicity\n    server: x\n    port: 443')+',"json")',context),/Unsupported or missing Mihomo node type/);
 });
+
+
+test('TrustTunnel v2 binary deep-link round-trips all TLV fields including unknown tags',()=>{
+ const input={type:'trusttunnel-deeplink',version:2,hostname:'example.org',
+  addresses:['192.0.2.10:443'],custom_sni:'front.example.org',username:'alice',
+  password:'secret',has_ipv6:true,skip_verification:false,
+  upstream_protocol:'http3',name:'Test TT',
+  dns_upstreams:['1.1.1.1','https://dns.example/dns-query'],
+  anti_dpi:true,unknown_tlvs:[{tag:33,data:'AQID'}]};
+ const link=call('encodeTrustTunnelDeepLink',input);
+ assert.match(link,/^tt:\/\/\?[A-Za-z0-9_-]+$/);
+ const decoded=norm(call('parseTrustTunnelDeepLink',link));
+ assert.equal(decoded.version,2);
+ assert.deepEqual(decoded.addresses,input.addresses);
+ assert.deepEqual(decoded.dns_upstreams,input.dns_upstreams);
+ assert.equal(decoded.upstream_protocol,'http3');
+ assert.deepEqual(decoded.unknown_tlvs,input.unknown_tlvs);
+ const reencoded=call('encodeTrustTunnelDeepLink',decoded);
+ assert.deepEqual(norm(call('parseTrustTunnelDeepLink',reencoded)),decoded);
+});
+test('TrustTunnel deep link maps into Mihomo when all fields are representable',()=>{
+ const doc={type:'trusttunnel-deeplink',version:2,hostname:'edge.example',addresses:['192.0.2.30:443'],
+   username:'alice',password:'secret',skip_verification:false,upstream_protocol:'http3',name:'Tunnel'};
+ const uri=call('encodeTrustTunnelDeepLink',doc);
+ const yml=vm.runInContext('nativeFormatConvert('+JSON.stringify(uri)+',"yaml")',context);
+ const obj=norm(call('parseMihomoYaml',yml));
+ assert.equal(obj.proxies[0].type,'trusttunnel');
+ assert.equal(obj.proxies[0].quic,true);
+ assert.equal(obj.proxies[0].server,'192.0.2.30');
+ const uri2=vm.runInContext('nativeFormatConvert('+JSON.stringify(yml)+',"tt")',context);
+ assert.equal(norm(call('parseTrustTunnelDeepLink',uri2)).password,'secret');
+ const linkOutput=norm(vm.runInContext('linkItemToStandaloneJsonObject({link:'+JSON.stringify(uri)+'})',context));
+ assert.equal(linkOutput.proxies[0].username,'alice');
+});
+test('TrustTunnel subscription-only and unmappable TLVs cannot be silently flattened to Mihomo',()=>{
+ const subscription={type:'trusttunnel-deeplink',version:2,subscription_url:'https://example.org/sub'};
+ const link=call('encodeTrustTunnelDeepLink',subscription);
+ const parsed=norm(call('parseTrustTunnelDeepLink',link));
+ assert.equal(parsed.subscription_url,subscription.subscription_url);
+ assert.throws(()=>vm.runInContext('nativeFormatConvert('+JSON.stringify(link)+',"yaml")',context),/cannot be represented/);
+ const withDns={type:'trusttunnel-deeplink',version:2,hostname:'example.org',
+  addresses:['example.org:443'],username:'u',password:'p',dns_upstreams:['1.1.1.1']};
+ assert.throws(()=>call('ttToMihomo',withDns),/cannot be represented/);
+});
+test('TrustTunnel malformed length and invalid URL are rejected',()=>{
+ assert.throws(()=>call('parseTrustTunnelDeepLink','tt://?AQE'),/Invalid TrustTunnel TLV length|Truncated/);
+ assert.throws(()=>call('encodeTrustTunnelDeepLink',{type:'trusttunnel-deeplink',version:2,subscription_url:'http://example.org'}),/HTTPS/);
+});
