@@ -141,7 +141,7 @@ test('Hysteria2 Realm URI uses rendezvous token and separate auth', () => {
   assert.deepEqual(outbound.realm.stun_servers, ['stun.one:3478', 'stun.two:3478']);
   const converted = json(`convertJSONToLinks({outbounds:[${JSON.stringify(outbound)}]}, 'fixture')`);
   assert.equal(converted.errors.length, 0);
-  assert.match(converted.links[0].link, /^hysteria2\\+realm:\/\//);
+  assert.match(converted.links[0].link, /^hysteria2\+realm:\/\//);
   assert.equal((converted.links[0].link.match(/stun=/g)||[]).length, 2);
 });
 
@@ -150,7 +150,7 @@ test('Hysteria2 Realm HTTP scheme is preserved across JSON conversion', () => {
   const outbound = json(`parseHysteria2Share(${JSON.stringify(link)}).outbound`);
   assert.equal(outbound.realm.server_url, 'http://r.example:8080');
   const result = json(`convertJSONToLinks({outbounds:[${JSON.stringify(outbound)}]})`);
-  assert.match(result.links[0].link, /^hysteria2\\+realm\\+http:\/\//);
+  assert.match(result.links[0].link, /^hysteria2\+realm\+http:\/\//);
 });
 
 test('Hysteria2 ECH, pins and unsupported Gecko tuning never disappear silently', () => {
