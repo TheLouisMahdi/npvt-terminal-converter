@@ -1064,7 +1064,6 @@ function linkItemToSingBoxJsonObject(item, index=0){
   else if (proto === 'anytls') parsed = parseAnytlsShare(link);
   else throw new Error('not a sing-box URI');
   const obj = buildSingBoxConfigFromOutbound(parsed.outbound, parsed.name || `Config ${index + 1}`);
-  obj.remarks = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   return obj;
 }
 function linkToNpvParsedProfile(link){
