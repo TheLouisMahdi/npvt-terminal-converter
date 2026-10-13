@@ -18,13 +18,13 @@ Research window: **2026-07-13 through 2026-10-13**. Verified from official proje
 | Family / feature | Browser converter | Core validation | Next action |
 | --- | --- | --- | --- |
 | NPVT1 | existing import/export | protocol regression checks only | test with genuine current NPV Tunnel files |
-| VLESS, VMess, Trojan | URI and Xray JSON | Xray 26.7.28 | test current Xray preview versions and unknown fields |
+| VLESS, VMess, Trojan | URI and Xray JSON | Xray 26.7.28 and 26.10.10 prerelease | test current Xray preview versions and unknown fields |
 | VLESS PQ encryption | opaque encoding preserved in URI/JSON | not cryptographic handshake validation | version-specific live handshake tests |
-| XHTTP (mode, extra) | URI/JSON mapped | basic Xray test | expand fixtures for extra.headers, xmux, downloadSettings; check older-client compatibility |
-| AnyTLS | URI ↔ sing-box JSON, constrained | sing-box 1.14.2 | update validator to 1.14.3; preserve client_metadata in native JSON |
-| Hysteria2 Gecko/Realm/ECH | constrained URI ↔ sing-box JSON | sing-box 1.14.2 | 1.14.3 validation and certificate pin version gating |
-| Shadowsocks SIP002/SIP022 | SS 2022 raw URI output | JS regression tests | validate with native core |
-| Shadowsocks SIP003 | supported plugins to native sing-box JSON, no NPVT | CI fixture added | reject unrecognized plugins; add reverse mapping separately |
+| XHTTP (mode, extra) | URI/JSON mapped | basic Xray tests on both versions | expand fixtures for extra.headers, xmux, downloadSettings; check older-client compatibility |
+| AnyTLS | URI ↔ sing-box JSON, constrained | sing-box 1.14.3 | preserve client_metadata in native JSON; live handshake untested |
+| Hysteria2 Gecko/Realm/ECH | constrained URI ↔ sing-box JSON | sing-box 1.14.3 (Gecko/Realm fixtures) | certificate pin version gating; real ECH handshake untested |
+| Shadowsocks SIP002/SIP022 | SS 2022 raw URI output | JS regression tests | native SS 2022 handshake untested |
+| Shadowsocks SIP003 | supported plugins ↔ native sing-box JSON, no NPVT | sing-box 1.14.3 fixture and regression tests | reject unrecognized plugins or extra native fields |
 | Snell, TrustTunnel, Mieru, ShadowQUIC, MASQUE | no complete share exporter | none | native format adapters with target-specific fixtures |
 | AmneziaWG 3.0/3.1 | no AWG importer/exporter | none | document INI-to-Mihomo mappings before implementation |
 | Mihomo YAML | not supported natively | none | add YAML parser and official Mihomo config checks as a separate feature |
