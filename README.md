@@ -132,7 +132,11 @@ The converter now recognizes the documented Hysteria2 / HY2 URI form, including 
 
 The documented `hysteria2+realm://` and `hysteria2+realm+http://` schemes map to sing-box 1.14+ `realm` objects. A Realm token is **not** the Hysteria authentication password. `auth` is read separately, and the realm name and repeated STUN addresses are mapped explicitly. For a valid sing-box Realm export, the input URI must specify STUN servers.
 
-**Lossless conversion limit:** official Hysteria URI ECH config lists are base64, whereas sing-box expects a PEM-formatted ECH config array. Certificate pin formats differ too. Until those encodings are verified against both implementations, converting those URI options to native sing-box JSON is blocked with a warning. Realm `lport`, Gecko packet-size tuning, `hop_interval_max`, `bbr_profile`, `disable_chrome_parrot`, extra TLS options, and other non-URI sing-box settings must remain in full JSON. They must not be silently flattened into short share links.
+**ECH conversion:** Hysteria URI public ECHConfigList Base64 is wrapped as a sing-box PEM `ECH CONFIGS` line array. Reverse conversion is supported for an inline public ECH PEM block only. The mapping validates the outer ECHConfigList length, but does not verify every HPKE or server handshake parameter.
+
+**Lossless conversion limit:** Hysteria `pinSHA256` is a hash of the full certificate, not a public-key pin. It is not converted into a different pin type.
+
+Realm `lport`, Gecko packet-size tuning, `hop_interval_max`, `bbr_profile`, additional TLS options, and other non-URI sing-box settings stay in full JSON rather than being silently flattened.
 
 Sources:
 - [Hysteria2 official URI scheme](https://v2.hysteria.network/docs/developers/URI-Scheme/)
