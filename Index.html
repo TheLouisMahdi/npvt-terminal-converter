@@ -916,7 +916,7 @@ function parseAnytlsShare(link){
   const uri = parseLooseShareUri(link);
   if (uri.scheme !== 'anytls' || !uri.host || !uri.userinfo) throw new Error('invalid AnyTLS URI');
   const port = uri.portSpec || '443';
-  if (!/^\\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid AnyTLS port');
+  if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid AnyTLS port');
   const outbound = {
     type: 'anytls',
     tag: 'proxy',
@@ -942,7 +942,7 @@ function anytlsProfileToLink(profile, fallbackName=''){
   const host = String(firstValue(profile.server, profile.host)).trim();
   const port = String(firstValue(profile.serverPort, profile.server_port, profile.port, '443'));
   const password = firstValue(profile.password, profile.auth);
-  if (!host || !password || !/^\\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+  if (!host || !password || !/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
     throw new Error('AnyTLS requires a valid host, port and password');
   }
   const q = [];
