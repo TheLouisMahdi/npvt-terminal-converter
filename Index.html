@@ -166,6 +166,35 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
 .bubble-nav.open .bubble,.bubble-nav:hover .bubble{opacity:1;transform:translateX(0) scale(1);pointer-events:auto}
 .bubble:nth-child(2){transition-delay:.03s}.bubble:nth-child(3){transition-delay:.08s}.bubble:nth-child(4){transition-delay:.13s}.bubble:nth-child(5){transition-delay:.18s}
 .bubble:hover,.bubble-toggle:hover{transform:translateX(-4px) scale(1.04);border-color:var(--green)}
+/* Workflow navigation and native workspace, keeping the existing terminal palette. */
+.workflow-nav{position:sticky;top:8px;z-index:24;display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:thin;margin:0 0 18px;padding:9px;border:1px solid var(--line);border-radius:17px;background:rgba(3,14,8,.96);box-shadow:0 12px 30px rgba(0,0,0,.32)}
+.workflow-nav a{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;padding:10px 12px;border-radius:11px;border:1px solid transparent;color:var(--text);font:600 12px var(--mono);text-decoration:none;min-height:40px}
+.workflow-nav a span{color:var(--green);font-size:11px}
+.workflow-nav a:hover,.workflow-nav a:focus-visible{background:rgba(57,255,136,.09);border-color:var(--line2);outline:none}
+section[id]{scroll-margin-top:83px}
+section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
+.protocol-groups{display:grid;gap:8px}
+.protocol-label{font:600 11px var(--mono);color:var(--muted);letter-spacing:.04em}
+#nativeTools{grid-column:1 / -1;height:auto}
+#nativeTools .panes{grid-template-columns:repeat(2,minmax(0,1fr))}
+#nativeTools textarea{min-height:245px}
+#nativeTools .switch-stack{max-width:490px}
+.native-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:0 0 6px}
+.native-note{font:12px var(--mono);color:var(--muted)}
+.native-status{min-height:44px}
+:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+@media(max-width:980px){#nativeTools .panes{grid-template-columns:1fr}}
+@media(max-width:760px){
+  .workflow-nav{top:5px;gap:4px;padding:6px;margin-bottom:12px;border-radius:13px}
+  .workflow-nav a{padding:8px 9px;font-size:11px;min-height:40px}
+  .hero-panel .protocol-strip{gap:5px}
+  #nativeTools textarea{min-height:170px}
+  .native-toolbar .btn{width:auto}
+  section[id]{scroll-margin-top:75px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;border:1px solid var(--line2);background:rgba(5,18,10,.94);color:var(--green3);border-radius:999px;padding:11px 16px;font-family:var(--mono);font-size:12px;z-index:50;transition:.25s;box-shadow:0 18px 50px rgba(0,0,0,.35)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:980px){
@@ -222,26 +251,17 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
 </head>
 <body>
 <div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
-<nav class="bubble-nav" id="bubbleNav" aria-label="Floating navigation">
-  <button class="bubble-toggle" id="bubbleToggle" title="Menu" aria-label="Toggle menu">::</button>
-  <a class="bubble" href="#npvtToLinks" title="NPVT to links">IN</a>
-  <a class="bubble" href="#linksToNpvt" title="Links to NPVT">OUT</a>
-  <a class="bubble" href="#jsonTools" title="JSON to links / NPVT">JS</a>
-  <a class="bubble" href="#linksToJsonTools" title="V2Ray links / NPVT / TXT to JSON">LJ</a>
-  <a class="bubble" href="#resultsTable" title="Results table">TB</a>
-  <a class="bubble" href="https://github.com/TheLouisMahdi" target="_blank" rel="noopener" title="GitHub">GH</a>
-</nav>
 <main class="wrap">
   <section class="hero">
     <div class="hero-copy">
       <div class="kicker">privacy-first / single-file / terminal converter</div>
       <h1>NPV Tunnel NPVT Converter<span class="caret">_</span></h1>
-      <p>Read NPVT1 containers, NPV-style JSON, raw V2Ray links, and Base64 subscriptions into clean share links. Reverse mode builds an NPV Tunnel-compatible NPVT1 container using the validated schema learned from real exported files. Everything runs locally inside the browser.</p>
+      <p>Convert NPVT1, proxy links, Xray/sing-box JSON and Mihomo YAML locally. Use the workflow below for NPVT imports, share links or native configurations. Unsupported mappings are reported instead of silently dropping fields.</p>
       <div class="hero-actions">
         <a class="btn primary" href="#npvtToLinks">Start conversion</a>
         <a class="btn secondary" href="#linksToNpvt">Build NPVT</a>
         <a class="btn secondary" href="#jsonTools">JSON tools</a>
-        <a class="btn secondary" href="#linksToJsonTools">Links → JSON</a>
+        <a class="btn secondary" href="#nativeTools">Native formats</a>
       </div>
     </div>
     <aside class="hero-panel" aria-label="Runtime overview">
@@ -253,8 +273,15 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
           <div><span class="prompt">$</span> build --npvt1-real-schema</div>
         </div>
       </div>
-      <div class="protocol-strip" aria-label="Supported protocols">
-        <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">HYSTERIA2</span><span class="chip">HY2</span><span class="chip">TUIC</span><span class="chip">ANYTLS</span>
+      <div class="protocol-groups">
+        <div class="protocol-label">Share links</div>
+        <div class="protocol-strip" aria-label="Link families">
+          <span class="chip">VLESS</span><span class="chip">VMESS</span><span class="chip">TROJAN</span><span class="chip">SS</span><span class="chip">HY2</span><span class="chip">TUIC</span><span class="chip">ANYTLS</span>
+        </div>
+        <div class="protocol-label">Native formats</div>
+        <div class="protocol-strip" aria-label="Native configuration families">
+          <span class="chip">MIHOMO</span><span class="chip">SNELL</span><span class="chip">TRUSTTUNNEL</span><span class="chip">SHADOWQUIC</span><span class="chip">MIERU</span><span class="chip">WIREGUARD / AWG</span>
+        </div>
       </div>
       <div class="pipeline">
         <div class="node">Drop / Paste</div>
@@ -263,6 +290,14 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       </div>
     </aside>
   </section>
+  <nav class="workflow-nav" aria-label="Conversion tools">
+    <a href="#npvtToLinks"><span>01</span> NPVT → Links</a>
+    <a href="#linksToNpvt"><span>02</span> Links → NPVT</a>
+    <a href="#jsonTools"><span>03</span> JSON → Links</a>
+    <a href="#linksToJsonTools"><span>04</span> Links → JSON</a>
+    <a href="#nativeTools"><span>05</span> Native formats</a>
+    <a href="#resultsTable"><span>06</span> Results</a>
+  </nav>
   <section class="terminal-card">
     <div class="topbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>clean-npv-v2ray-engine / local-only runtime</span></div>
     <div class="grid">
@@ -416,8 +451,13 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
     </section>
 
     <section class="panel" id="nativeTools">
-      <h2>05 — Mihomo / Clash YAML and AmneziaWG</h2>
-      <p>Convert native proxy nodes without changing protocols or dropping advanced settings. Supports Snell, TrustTunnel, ShadowQUIC, Mieru and WireGuard / AmneziaWG v3.1. Paste Mihomo YAML/JSON or WireGuard client INI. Unsupported YAML constructs and unmappable fields produce explicit errors.</p>
+      <h2>05 — Native formats: Mihomo, TrustTunnel and WireGuard</h2>
+      <p>Convert Mihomo YAML/JSON, WireGuard client INI and TrustTunnel v2 deep links. Snell, ShadowQUIC, Mieru and AWG retain native settings. Unsupported mappings are reported; NPVT1 is not generated for these formats.</p>
+      <div class="native-toolbar">
+        <button class="btn secondary" type="button" id="nativeChoose">Open config file</button>
+        <input type="file" id="nativeFile" accept=".yaml,.yml,.json,.ini,.conf,.txt">
+        <span class="native-note">Local only · 1 MB limit · No upload</span>
+      </div>
       <div class="panes">
         <div>
           <label class="input-label" for="nativeInput">Mihomo YAML / JSON / WireGuard INI</label>
@@ -437,11 +477,12 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
           <button class="btn secondary" type="button" id="nativeToJson">→ Native JSON</button>
           <button class="btn secondary" type="button" id="nativeToIni">→ WireGuard INI</button>
           <button class="btn secondary" type="button" id="nativeToTt">→ TT deep link</button>
-          <button class="btn secondary" type="button" id="nativeCopy">Copy</button>
+          <button class="btn secondary" type="button" id="nativeCopy" disabled>Copy output</button>
+          <button class="btn secondary" type="button" id="nativeDownload" disabled>Download</button>
           <button class="btn bad" type="button" id="nativeClear">Clear</button>
         </div>
       </div>
-      <div class="log" id="nativeLog">Ready. Only native config representations are converted here.</div>
+      <div class="log native-status" id="nativeLog" role="status" aria-live="polite">Ready. Select a file or paste a native configuration.</div>
     </section>
 
     </div>
@@ -3506,15 +3547,24 @@ function nativeFormatConvert(input, target){
   }
   throw new Error('Unsupported native output format');
 }
+let nativeOutputFormat = '';
+function nativeOutputControls(){
+  const ready=!!$('nativeOutput').value;
+  $('nativeCopy').disabled=!ready;
+  $('nativeDownload').disabled=!ready;
+}
 function runNativeFormat(mode){
   const out=$('nativeOutput'),log=$('nativeLog');
+  nativeOutputFormat='';
   try{
     out.value=nativeFormatConvert($('nativeInput').value,mode);
-    log.textContent='Converted successfully. Run the target Core validator before using this configuration.';
+    nativeOutputFormat=mode;
+    log.textContent='Converted to '+({yaml:'Mihomo YAML',json:'JSON',ini:'WireGuard INI',tt:'TT deep link'}[mode]||mode)+'. Validate with the target Core before import.';
   }catch(e){
     out.value='';
-    log.textContent='Cannot safely convert: '+(e.message||String(e));
+    log.textContent='Conversion unavailable: '+(e.message||String(e));
   }
+  nativeOutputControls();
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
@@ -3522,14 +3572,43 @@ $('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
 $('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
 $('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));
 $('nativeToTt').addEventListener('click',()=>runNativeFormat('tt'));
-$('nativeClear').addEventListener('click',()=>{$('nativeInput').value='';$('nativeOutput').value='';$('nativeLog').textContent='Ready.';});
+$('nativeClear').addEventListener('click',()=>{
+  $('nativeInput').value='';
+  $('nativeOutput').value='';
+  $('nativeFile').value='';
+  nativeOutputFormat='';
+  $('nativeLog').textContent='Ready.';
+  nativeOutputControls();
+});
+$('nativeChoose').addEventListener('click',()=>$('nativeFile').click());
+$('nativeFile').addEventListener('change',async()=>{
+  const file=$('nativeFile').files[0];
+  if(!file)return;
+  $('nativeOutput').value='';
+  nativeOutputFormat='';
+  nativeOutputControls();
+  if(file.size>1048576){$('nativeLog').textContent='File exceeds the 1 MB limit.';return;}
+  try{
+    $('nativeInput').value=await file.text();
+    $('nativeLog').textContent='Loaded '+file.name+'. Select an output format.';
+  }catch(_){$('nativeLog').textContent='Could not read the selected file.';}
+});
+$('nativeDownload').addEventListener('click',()=>{
+  const value=$('nativeOutput').value;
+  if(!value)return;
+  const extension={yaml:'yaml',json:'json',ini:'conf',tt:'txt'}[nativeOutputFormat]||'txt';
+  const url=URL.createObjectURL(new Blob([value],{type:'text/plain;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url;a.download='converted-config.'+extension;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 $('nativeCopy').addEventListener('click',()=>{
   if(!$('nativeOutput').value)return;
   navigator.clipboard.writeText($('nativeOutput').value).then(()=>{$('nativeLog').textContent='Output copied.';}).catch(()=>{$('nativeLog').textContent='Copy unavailable. Select and copy output manually.';});
 });
 document.addEventListener('drop',e=>e.preventDefault());
 
-$('bubbleToggle').addEventListener('click',()=>$('bubbleNav').classList.toggle('open'));
 $('pickForward').addEventListener('click',()=>$('fileForward').click());
 $('pickReverse').addEventListener('click',()=>$('fileReverse').click());
 $('pickLinksJson').addEventListener('click',()=>$('fileLinksJson').click());
