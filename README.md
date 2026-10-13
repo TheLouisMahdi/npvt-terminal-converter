@@ -56,6 +56,8 @@ Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, S
 
 **Usage:** open `Index.html`, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
 
+Basic **VLESS, VMess, Trojan and Shadowsocks** mappings to/from Mihomo YAML/JSON are also available when all transport and security options can be preserved; other native-only settings are rejected.
+
 The exact [input/output compatibility matrix](docs/SMART_FORMAT_MATRIX.md) distinguishes supported conversions, restricted native mappings, unsupported proprietary inputs, and cryptographically locked containers. It also documents relevant projects, such as Sub-Store and subconverter-rs, without importing their code or dependencies.
 
 The older conversion engines are still included internally for backwards compatibility and regression tests; the public interface exposes the single unified workflow.
