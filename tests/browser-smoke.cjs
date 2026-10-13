@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {chromium} = require('playwright');
+const nodeCrypto = require('node:crypto');
 
 const root = path.resolve(__dirname, '..');
 const url = pathToFileURL(path.join(root, 'Index.html')).href;
@@ -58,6 +59,28 @@ async function run() {
       await page.waitForFunction(() => document.getElementById('nativeInput').value.includes('proxies:'), null, {timeout:10000});
       await page.locator('#nativeToJson').click();
       assert.equal(JSON.parse(await page.locator('#nativeOutput').inputValue()).proxies[0].type,'snell');
+      const fake={SSH:[{Host:'ssh.example.org',Port:22,User:'demo',Pass:'test-only'}],Proxy:[],Payload:{Value:'GET / HTTP/1.1'}};
+      const enc=nodeCrypto.createCipheriv('aes-128-ecb',Buffer.from('<n3t5yn4^n3tm0d>'),null);
+      const nmBinary=Buffer.concat([enc.update(JSON.stringify(fake)),enc.final()]);
+      await page.locator('#nativeFile').setInputFiles({
+        name:'synthetic.nm',mimeType:'application/octet-stream',
+        buffer:Buffer.from(nmBinary.toString('base64'))
+      });
+      await page.waitForFunction(() => /NetMod decrypted locally|Import failed/.test(document.getElementById('nativeLog').textContent),null,{timeout:10000});
+      assert.equal(JSON.parse(await page.locator('#nativeOutput').inputValue()).SSH[0].Host,'ssh.example.org');
+      const npvsHeader=Buffer.alloc(169);
+      npvsHeader[0]=1;npvsHeader[50]=1;
+      npvsHeader.writeUInt32BE(600000,53);npvsHeader.writeUInt32BE(16,133);
+      const npvs=Buffer.alloc(9+169+16+32+64);
+      npvs.write('NPVS',0);npvs[4]=5;npvs.writeUInt32BE(169,5);
+      npvsHeader.copy(npvs,9);npvs.writeUInt32BE(32,9+169+12);
+      await page.locator('#nativeFile').setInputFiles({
+        name:'synthetic.npvs',mimeType:'application/octet-stream',buffer:npvs
+      });
+      await page.waitForFunction(() => /NPVS v5 detected|Import failed/.test(document.getElementById('nativeLog').textContent),null,{timeout:10000});
+      assert.match(await page.locator('#nativeLog').innerText(),/creator-passphrase/);
+      assert.equal(await page.locator('#nativeOutput').inputValue(),'');
+
       await page.locator('#nativeClear').click();
       assert.equal(await page.locator('#nativeOutput').inputValue(),'');
       assert.equal(await page.locator('#nativeDownload').isDisabled(),true);
