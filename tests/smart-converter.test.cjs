@@ -8,7 +8,7 @@ const crypto=require('node:crypto');
 const script=fs.readFileSync(path.join(__dirname,'..','Index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
 const cutoff=script.indexOf("document.addEventListener('dragover'");
 assert.ok(cutoff>0);
-const ctx=vm.createContext({URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,atob,btoa,crypto:crypto.webcrypto});
+const ctx=vm.createContext({URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,atob,btoa,crypto:crypto.webcrypto,window:{crypto:crypto.webcrypto}});
 vm.runInContext(script.slice(0,cutoff),ctx,{filename:'Index.html',timeout:20000});
 const call=(name,...args)=>JSON.parse(JSON.stringify(vm.runInContext(name+'('+args.map(x=>JSON.stringify(x)).join(',')+')',ctx,{timeout:20000})));
 const uuid='f47ac10b-58cc-4372-a567-0e02b2c3d4e5';
