@@ -766,7 +766,12 @@ function parseSsShare(link){
   const hashIdx = body.indexOf('#');
   if (hashIdx >= 0) { hash = body.slice(hashIdx + 1); body = body.slice(0, hashIdx); }
   const qIdx = body.indexOf('?');
-  if (qIdx >= 0) body = body.slice(0, qIdx);
+  if (qIdx >= 0) {
+    const params = new URLSearchParams(body.slice(qIdx + 1));
+    if (params.has('plugin')) throw new Error('SIP003 plugin requires native sing-box JSON; cannot silently remove it');
+    body = body.slice(0, qIdx);
+  }
+  body = body.replace(/\/$/, '');
   let userInfo = '', hostPort = '';
   const at = body.lastIndexOf('@');
   if (at >= 0) {
@@ -805,6 +810,25 @@ function parseSsShare(link){
   };
 }
 
+function shadowsocksPluginToSingBox(link, index=0){
+  const raw = String(link || '').trim();
+  const uri = raw.split('#')[0];
+  const qIndex = uri.indexOf('?');
+  if (qIndex < 0) throw new Error('missing Shadowsocks plugin');
+  const spec = new URLSearchParams(uri.slice(qIndex + 1)).get('plugin');
+  if (!spec) throw new Error('missing Shadowsocks plugin');
+  const [plugin, ...parts] = spec.split(';');
+  if (!['obfs-local','v2ray-plugin'].includes(plugin)) throw new Error('unsupported Shadowsocks plugin; preserve the original URI');
+  const plain = raw.slice(0, raw.indexOf('?')) + (raw.includes('#') ? raw.slice(raw.indexOf('#')) : '');
+  const parsed = parseSsShare(plain);
+  const port = Number(parsed.serverPort);
+  if (!parsed.server || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid Shadowsocks port');
+  return buildSingBoxConfigFromOutbound({
+    type:'shadowsocks', tag:'proxy', server:parsed.server,
+    server_port:port, method:parsed.method, password:parsed.password,
+    plugin, plugin_opts:parts.join(';')
+  }, parsed.name || `Config ${index+1}`);
+}
 function parseLooseShareUri(link){
   const str = String(link || '').trim();
   const m = str.match(/^([A-Za-z0-9+.-]+):\/\/(.*)$/);
@@ -1858,6 +1882,12 @@ function hysteria2ProfileToLink(profile, fallbackName=''){
 function profileToLink(p, fallbackName='') {
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'anytls') return anytlsProfileToLink(p, fallbackName);
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'hysteria2') return hysteria2ProfileToLink(p, fallbackName);
+  const explicit = String(firstValue(p && p.protocol, p && p.configProtocol, p && p.outboundProtocol)).toLowerCase();
+  const native = p && p.type && p.server_port ? String(p.type).toLowerCase() : '';
+  if ((explicit && !['vless','vmess','trojan','ss','shadowsocks','socks','hysteria2','hy2','anytls'].includes(explicit)) ||
+      (native && !['vless','vmess','trojan','ss','shadowsocks','socks','hysteria2','hy2','anytls'].includes(native))) {
+    throw new Error(`Unsupported native protocol ${explicit || native}; keep the original JSON`);
+  }
   const n = normalizedProfile(p, fallbackName);
   if (!n.host || !n.port) throw new Error('missing host/port');
   const protocol = detectProtocol(p);
@@ -1939,8 +1969,8 @@ function profileToLink(p, fallbackName='') {
   if (protocol === 'ss') {
     const method = n.method && n.method !== 'none' ? n.method : 'aes-128-gcm';
     if (!n.id) throw new Error('missing Shadowsocks password');
-    const userInfo = base64UrlUtf8(`${method}:${n.id}`);
-    return `ss://${userInfo}@${n.host}:${n.port}#${tag}`;
+    const userInfo = method.startsWith('2022-') ? `${enc(method)}:${enc(n.id)}` : base64UrlUtf8(`${method}:${n.id}`);
+    return `ss://${userInfo}@${formatUriHost(n.host)}:${n.port}#${tag}`;
   }
   if (protocol === 'socks') {
     const auth = n.username && n.password ? `${enc(n.username)}:${enc(n.password)}@` : '';
@@ -2231,6 +2261,7 @@ function processForwardText(){
 function isNpvtBuildSupportedLink(link){
   const proto = String(link || '').split('://')[0].toLowerCase();
   if (!['vless','vmess','trojan','ss','shadowsocks','socks'].includes(proto)) return false;
+  if (['ss','shadowsocks'].includes(proto) && /[?&]plugin=/.test(String(link).split('#')[0])) return false;
   if (proto === 'vless') {
     try {
       const url = new URL(link);
@@ -2357,6 +2388,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   if (!link) throw new Error('empty link');
   const proto = String(link.split('://')[0] || '').toLowerCase();
   if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
+  if (proto === 'ss' && /[?&]plugin=/.test(link.split('#')[0])) return shadowsocksPluginToSingBox(link, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
