@@ -217,6 +217,26 @@ Shadowsocks 2022 URIs follow SIP022 percent-encoded credentials. SIP003 plugin l
 
 ---
 
+## NetMod (.nm) and NPV Tunnel (.npvs) imports
+
+The native-format file picker accepts encrypted configuration files **locally**, without uploading or logging them:
+
+| Input | Status | Output |
+| --- | --- | --- |
+| NetMod Syna `.nm` | AES-128-ECB/PKCS#7 decoding for three published legacy key generations | Original decrypted NetMod JSON; SSH, Proxy, SNI, Payload and policy fields retained |
+| NPV Tunnel `.npvs` binary v5 | Header, unlock method, and encrypted length detection | Actionable status only; no decrypted config until the authorized creator passphrase or required key is available |
+| Other NPVS generations | Not implemented | Explicit version or malformed-file error |
+
+**Important:** The NetMod sample uses SSH/Proxy definitions, not a V2Ray configuration. The converter preserves those fields as NetMod JSON rather than inventing a VLESS/Trojan link. The sample NPVS v5 uses passphrase-based PBKDF2-HMAC-SHA256 with 600,000 iterations and authenticated encrypted fields; this version of the panel does **not** claim to decrypt it without the actual creator's passphrase.
+
+To use: open workflow **05 Native formats**, select the local `.nm` file, and copy or download the recovered JSON. Selecting a `.npvs` file checks its envelope and explains why the content remains locked. Source files and decrypted output are **never added to GitHub test fixtures**.
+
+Implementation tests use only artificial NetMod payloads and synthetic NPVS headers. They do not publish uploaded configurations or credential material.
+
+Related formats and implementation notes: [Native formats](docs/NATIVE_FORMATS.md). A third-party reference implementation is [Pantegnos](https://github.com/FrontierTM/Pantegnos) (AGPL-3.0); no source code or assets from that project are incorporated.
+
+---
+
 ## Native Mihomo YAML, TrustTunnel links, and AmneziaWG
 
 The offline HTML app now includes a **Mihomo / Clash YAML and AmneziaWG** section. It handles native Snell, TrustTunnel, ShadowQUIC, Mieru, and WireGuard/AmneziaWG v3.1 config nodes through YAML/JSON conversion. It also supports WireGuard client INI import/export and TrustTunnel official `tt://?` v2 binary deep-link decoding/encoding.
