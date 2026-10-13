@@ -21,7 +21,8 @@ const fixtures = {
   'anytls.json': 'anytls://pass@example.org:443/?sni=example.org#AnyTLS',
   'hysteria2-gecko.json': 'hysteria2://pass@example.org:443,5000-6000/?obfs=gecko&obfs-password=mask&sni=example.org#Gecko',
   'hysteria2-realm.json': 'hysteria2+realm://token@realm.example/room?auth=pass&stun=stun.example.org&sni=example.org#Realm',
-  'shadowsocks-sip003.json': 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388/?plugin=obfs-local%3Bobfs%3Dhttp#SIP003'
+  'shadowsocks-sip003.json': 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388/?plugin=obfs-local%3Bobfs%3Dhttp#SIP003',
+  'tuic.json': 'tuic://f47ac10b-58cc-4372-a567-0e02b2c3d4e5:example-pass@tuic.example.org:443?alpn=h3&sni=tuic.example.org#TUIC'
 };
 
 const output = path.join(root, 'tests', 'generated');

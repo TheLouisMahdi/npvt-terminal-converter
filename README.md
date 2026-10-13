@@ -47,6 +47,39 @@ The current engine is based on real NPVT1 exports and expanded with a bidirectio
 
 ---
 
+
+## What's new in the 2026 converter
+
+The original NPVT1 and V2Ray converter has been expanded with protocol adapters, native formats, core validation and a mobile-friendly workspace. All conversion still happens locally in one HTML file.
+
+| Family | New functionality | Supported scope |
+| --- | --- | --- |
+| Xray / VLESS | XHTTP mode, host, path, extra, xmux, downloadSettings, modern outbound settings, post-quantum encryption fields | URI and JSON where representable; not unsupported NPVT1 |
+| sing-box | AnyTLS, Hysteria2 Gecko/Realm/port hopping/ECH, TUIC | Standard link and native JSON conversions; advanced options remain native |
+| Shadowsocks | SIP002, SIP022/SS2022, SIP003 plugin options | Basic share URIs and native sing-box JSON with preservation checks |
+| Mihomo | YAML and JSON native-format mapping | Snell, TrustTunnel, ShadowQUIC, Mieru, WireGuard/AmneziaWG |
+| TrustTunnel | TLV version 2 deep-link codec | tt://? round trips; Mihomo only for losslessly representable links |
+| WireGuard / AWG | Client INI/YAML/JSON; version 3/3.1 safeguards | Verified client fields, multi-peer data and header padding checks |
+| UI | Six-section workflow navigation, wide native editor, file open/copy/download, mobile layout | No external runtime dependencies |
+| Maintenance | Upstream changes monitored across 14 repositories | Daily GitHub issue reporting; no automatic merging of parser changes |
+
+### Conversion workspace
+
+| Section | Input | Output |
+| --- | --- | --- |
+| 01 NPVT to Links | NPVT1 files, JSON, text, subscriptions | Extracted share links |
+| 02 Links to NPVT | Validated legacy NPVT-compatible links | NPVT1 container / profile JSON |
+| 03 JSON to Links | Xray, sing-box and NPV JSON | Share links with conversion warnings |
+| 04 Links to JSON | Proxy links, NPVT1, subscriptions | Xray or sing-box JSON |
+| 05 Native formats | Mihomo YAML/JSON, WireGuard client INI, TT version 2 links | Mihomo YAML, JSON, WireGuard INI, TT link |
+| 06 Results | Extracted profiles | Table and exports |
+
+**Important:** Native config support does not imply universal share-link or NPVT1 encoding. Advanced YAML tags, aliases, anchors, folded blocks and templates are unsupported in the lightweight offline parser. Unmappable fields are reported instead of being silently removed.
+
+Full boundaries: [Native format adapters](docs/NATIVE_FORMATS.md), [Core compatibility](docs/CORE_COMPAT_2026_Q3.md), [Maintenance](docs/MAINTENANCE.md).
+
+---
+
 ## Download
 
 ### Recommended for Android / iOS
@@ -91,6 +124,9 @@ flowchart LR
 
     J[Links / NPVT / TXT] --> K[Profile normalizer]
     K --> L[Separate JSON configs]
+
+    M[Mihomo YAML / WG INI / TT v2] --> N[Native format adapter]
+    N --> O[Native YAML / JSON / INI / TT link]
 ```
 
 <div align="center">
@@ -99,7 +135,7 @@ flowchart LR
 
 </div>
 
-The app now includes four main panels:
+The app includes five conversion workspaces plus a results table:
 
 | Panel | Input | Output |
 |---|---|---|
@@ -107,28 +143,39 @@ The app now includes four main panels:
 | **V2Ray Links → NPVT1 / NPV JSON** | `vless://`, `vmess://`, `trojan://`, `ss://`, `socks://`, JSON, mixed text, subscriptions | Real-schema `.npvt` container and profile JSON |
 | **Xray / V2Ray JSON → Links / NPVT** | Full Xray config, `outbounds[]`, NPV `v2rayProfile`, profile arrays, mixed JSON | Short share links or NPVT1 output |
 | **Links / NPVT / TXT → Separate JSON Configs** | One link, many links, `.npvt`, `.txt`, subscription, mixed text | One standalone JSON config per profile in a TXT output |
+| **Mihomo / TrustTunnel / WireGuard native formats** | YAML, JSON, WG/AWG INI, TT deep link | Native YAML, JSON, INI, TT deep link where safe |
 
 ---
 
 ## Supported Protocol Families
 
-The converter is focused on V2Ray/Xray-compatible profile families commonly used by NPV Tunnel-style clients.
+**Supported** below means the documented mapping is available, not that every option or live connection has been tested. Core checks validate representative generated configurations.
 
-| Protocol | Link parsing | NPVT export | JSON import | JSON export | Notes |
-|---|---:|---:|---:|---:|---|
-| VLESS | Yes | Yes | Yes | Yes | TLS, REALITY, WS, gRPC, TCP, flow-aware |
-| VMess | Yes | Yes | Yes | Yes | Standard Base64 `vmess://` payload parser |
-| Trojan | Yes | Yes | Yes | Yes | Preserves password, TLS, SNI, WS/TCP fields |
-| Shadowsocks | Yes | Yes | Yes | Yes | SIP002-style `ss://` parser |
-| SOCKS | Yes | Yes | Partial | Yes | Basic SOCKS profile mapping |
-| AnyTLS | Yes | No | Standard URI fields only | Yes (sing-box JSON) | Advanced session/TLS options require full JSON; not NPVT1 |
-| Base64 subscriptions | Yes | Extracts links | N/A | N/A | Decodes and scans supported links |
+| Protocol | Share/deep link | Native output | NPVT1 export | Core test |
+| --- | --- | --- | --- | --- |
+| VLESS | vless:// import/export, with restrictions | Xray JSON | Legacy subset only | Xray |
+| VMess | vmess:// Base64 import/export | Xray JSON | Legacy subset | Xray |
+| Trojan | trojan:// import/export | Xray JSON | Legacy subset | Xray |
+| Shadowsocks / SS2022 | ss://, SIP002/022 and supported SIP003 plugins | Xray or sing-box JSON | Plain legacy subset; plugins excluded | Xray / sing-box |
+| SOCKS | socks:// basic credentials | Xray JSON | Basic legacy subset | Xray |
+| AnyTLS | anytls:// basic settings | sing-box JSON | No | sing-box |
+| Hysteria2 (Gecko/Realm/ECH) | hy2://, hysteria2:// and Realm variants, with restrictions | sing-box JSON | No | sing-box (Gecko/Realm fixtures) |
+| TUIC | tuic:// import | sing-box JSON | No | sing-box |
+| TrustTunnel | tt://? v2 TLV codec | Mihomo YAML/JSON when lossless | No | Mihomo |
+| Snell | No universal share URI | Mihomo YAML/JSON | No | Mihomo |
+| ShadowQUIC | No verified general URI mapping | Mihomo YAML/JSON | No | Mihomo |
+| Mieru | No verified general URI mapping | Mihomo YAML/JSON | No | Mihomo |
+| WireGuard / AmneziaWG 3.1 | Client INI (not generic wireguard:// links) | Mihomo YAML/JSON and INI | No | Mihomo |
+| Base64 subscriptions | Scans supported links | Extracted profiles | Eligible links only | Unit/browser |
+| Juicity / NaiveProxy / MASQUE | No complete adapter | Not implemented | No | Not tested |
+
+Only the documented **subset** of Mihomo YAML is parsed. Complex anchors, aliases and templates are rejected; use a full YAML parser for those inputs. Unknown transport and security options are rejected where they cannot be represented without loss.
 
 ---
 
 ## Hysteria2 2026 compatibility
 
-The converter now recognizes the documented Hysteria2 / HY2 URI form, including Gecko obfuscation and UDP port hopping. Port ranges such as `443,5000-6000` map to sing-box's native `server_ports: ["443", "5000:6000"]` representation. The reverse route maps the ranges back to standard Hysteria2 URI syntax.
+The converter now recognizes the documented Hysteria2 / HY2 URI form, including Gecko obfuscation and UDP port hopping. Port ranges such as `443,5000-6000` map to sing-box's native `server_ports: ["443:443", "5000:6000"]` representation. The reverse route maps the ranges back to standard Hysteria2 URI syntax.
 
 The documented `hysteria2+realm://` and `hysteria2+realm+http://` schemes map to sing-box 1.14+ `realm` objects. A Realm token is **not** the Hysteria authentication password. `auth` is read separately, and the realm name and repeated STUN addresses are mapped explicitly. For a valid sing-box Realm export, the input URI must specify STUN servers.
 
@@ -422,7 +469,7 @@ sequenceDiagram
     Writer->>User: Copy or download local output
 ```
 
-The UI includes direct shortcuts for the main conversion surfaces: NPVT to links, links to NPVT, JSON tools, links to JSON, and results table.
+The interface has direct keyboard-accessible links to six workflows, including the wide native workspace and results table. Native inputs support file selection, local download, copy and explicit error status.
 
 ---
 
@@ -450,6 +497,14 @@ The UI includes direct shortcuts for the main conversion surfaces: NPVT to links
 | Base64 subscription scan | Complete |
 | Profile JSON export | Complete |
 | Duplicate link filtering | Complete |
+| Mihomo native YAML / JSON mapping | Supported for documented node subset |
+| TrustTunnel v2 binary deep links | Supported with conservative lossless mapping |
+| Snell / ShadowQUIC / Mieru | Mihomo native format support, not arbitrary share URIs |
+| WireGuard / AmneziaWG 3.1 | Supported client INI, YAML and JSON fields |
+| Native browser file open, copy and download | Supported; 1 MB file limit |
+| Core CI validation | Xray, sing-box and Mihomo config fixtures |
+| Responsive UI browser smoke | Automated Chromium desktop and mobile |
+| Live client/server handshakes | Not tested |
 | Server-side sync | Not included by design |
 
 ---
@@ -495,6 +550,34 @@ The JSON TXT output stores one pretty JSON config per profile and keeps an empty
 
 ---
 
+
+### Convert Mihomo YAML, TrustTunnel links or WireGuard INI
+
+1. Open **05 Native formats** from the workflow navigation.
+2. Paste your input, or select a local YAML, JSON, INI, CONF or TXT file (maximum 1 MB).
+3. Choose **Mihomo YAML**, **Native JSON**, **WireGuard INI** or **TT deep link**.
+4. Review conversion status and copy or download the result.
+
+Input is not uploaded. The converter rejects mappings that would silently drop required fields.
+
+---
+
+## Automated verification
+
+The project uses the following release checks. These checks verify deterministic transformations, representative sample configurations and browser behavior, **not live proxy server handshakes**.
+
+| Test | Command / runner | Coverage |
+| --- | --- | --- |
+| Unit and regression | node --test tests/*.test.cjs | Protocol, crypto guards, native formats, loss prevention |
+| sing-box native config | sing-box 1.14.3 in GitHub Actions | AnyTLS, Hysteria2 Gecko/Realm, SS plugin |
+| Xray native config | Xray 26.7.28 and 26.10.10 | VLESS WS/XHTTP and Trojan WS |
+| Mihomo native config | Mihomo 1.19.32 | Snell, TrustTunnel, ShadowQUIC, Mieru, AWG v3.1 |
+| Actual browser smoke | Chromium with Playwright in GitHub Actions | Desktop/mobile navigation, NPVT round trip, JSON, file import/download, TT deep links, error states |
+
+The browser workflow uploads desktop and mobile screenshots as short-lived CI artifacts. The HTML application itself still needs no npm packages, backend, external calls or build step.
+
+---
+
 ## NPV Tunnel Ping Note
 
 NPV Tunnel may sometimes show no ping or report ping as unavailable even when an imported profile is structurally valid. The app's ping/check routine is not always equivalent to a real tunnel connection attempt.
@@ -526,11 +609,14 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 
 ```text
 .
-├── Index.html                 # Main single-file converter
-├── README.md                  # Project documentation
-├── LICENSE                    # License
-└── assets/
-    └── Prev.png               # GitHub README preview image
+├── Index.html                 # Offline single-file browser app
+├── README.md                  # Product features and use
+├── LICENSE
+├── docs/                      # Compatibility and native adapter guides
+├── tools/                     # CI fixture exporters and release watcher
+├── tests/                     # Node and Chromium tests
+├── .github/workflows/         # Core and browser quality gates
+└── assets/Prev.png            # README preview
 ```
 
 ---
@@ -542,6 +628,11 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 - [Xray transport configuration](https://xtls.github.io/en/config/transport.html)
 - [V2Fly VMess documentation](https://www.v2fly.org/en_US/config/protocols/vmess.html)
 - [Shadowsocks SIP002 URI Scheme](https://github.com/shadowsocks/shadowsocks-org/wiki/SIP002-URI-Scheme)
+- [Official Xray-core](https://github.com/XTLS/Xray-core)
+- [sing-box](https://sing-box.sagernet.org/)
+- [Mihomo proxy docs](https://wiki.metacubex.one/en/)
+- [TrustTunnel deep link](https://github.com/TrustTunnel/TrustTunnel/blob/master/DEEP_LINK.md)
+- [Hysteria2 URI scheme](https://v2.hysteria.network/docs/developers/URI-Scheme/)
 
 ---
 

@@ -18,10 +18,18 @@ const ctx = vm.createContext({
 vm.runInContext(script.slice(0, boundary), ctx, {filename:'Index.html'});
 
 const uuid = 'f47ac10b-58cc-4372-a567-0e02b2c3d4e5';
+const vmessLink = 'vmess://' + Buffer.from(JSON.stringify({
+  v:'2', ps:'VMess', add:'vmess.example.org', port:'443', id:uuid,
+  aid:'0', scy:'auto', net:'ws', type:'none', host:'cdn.example.org',
+  path:'/ws', tls:'tls', sni:'vmess.example.org'
+})).toString('base64');
 const fixtures = {
   'vless-ws-tls.json': `vless://${uuid}@example.org:443?encryption=none&security=tls&type=ws&host=cdn.example.org&path=%2Fws&sni=cdn.example.org#WS`,
   'vless-xhttp-tls.json': `vless://${uuid}@example.org:443?encryption=none&security=tls&type=xhttp&host=cdn.example.org&path=%2Fxhttp&mode=stream-up&sni=cdn.example.org#XHTTP`,
-  'trojan-ws-tls.json': 'trojan://test-secret@example.org:443?security=tls&type=ws&host=cdn.example.org&path=%2Fws&sni=cdn.example.org#Trojan'
+  'trojan-ws-tls.json': 'trojan://test-secret@example.org:443?security=tls&type=ws&host=cdn.example.org&path=%2Fws&sni=cdn.example.org#Trojan',
+  'vmess-ws-tls.json': vmessLink,
+  'shadowsocks.json': 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388#SS',
+  'socks.json': 'socks://alice:secret@example.org:1080#SOCKS'
 };
 
 const dest = path.join(root, 'tests', 'generated-xray');
