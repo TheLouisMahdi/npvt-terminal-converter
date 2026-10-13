@@ -1716,29 +1716,73 @@ function hysteriaPortSpec(value){
   if (Array.isArray(value)) return value.map(x => String(x).trim()).filter(Boolean).join(',');
   return String(value || '').trim();
 }
-function hysteria2ProfileToLink(p, fallbackName=''){
-  p = p || {};
-  const fromAddr = splitHostPort(p.address || p.serverAddress || '');
-  const host = firstValue(p.server, p.host, p.addressHost, p.address, fromAddr.host);
-  if (!host) throw new Error('missing Hysteria2 host');
-  const portSpec = hysteriaPortSpec(firstValue(p.server_ports, p.serverPorts, p.serverPortRange, p.ports, p.serverPort, p.port, fromAddr.port, ''));
-  const auth = firstValue(p.auth, p.password, p.pass, p.id, p.uuid, p.userId, '');
-  const name = cleanRemarkName(firstValue(p.remarks, p.ps, p.name, p.tag, fallbackName, 'Hysteria2'), 'Hysteria2');
+function hysteria2ProfileToLink(profile, fallbackName=''){
+  const p = profile._sourceOutbound || profile;
+  const allowed = new Set([
+    'protocol','type','tag','name','remarks','server','server_port','serverPort',
+    'server_ports','serverPorts','serverPortRange','port','ports','password',
+    'auth','pass','tls','obfs','obfsPassword','obfs_password',
+    'sni','serverName','peer','insecure','allowInsecure','realm','scheme'
+  ]);
+  for (const [key, value] of Object.entries(p)) {
+    if (!allowed.has(key) && value !== undefined && value !== null && value !== '') {
+      throw new Error(`Hysteria2 option ${key} has no standard URI mapping; export full JSON`);
+    }
+  }
   const tls = p.tls && typeof p.tls === 'object' ? p.tls : {};
-  const obfsObj = p.obfs && typeof p.obfs === 'object' ? p.obfs : {};
+  for (const [key, value] of Object.entries(tls)) {
+    if (!['enabled','server_name','serverName','insecure'].includes(key) &&
+        value !== undefined && value !== null && value !== '') {
+      throw new Error(`Hysteria2 TLS option ${key} has no standard URI mapping; export full JSON`);
+    }
+  }
+  if (tls.enabled === false) throw new Error('Hysteria2 requires enabled TLS');
+  const obfs = p.obfs && typeof p.obfs === 'object' ? p.obfs : {};
+  if (Object.keys(obfs).some(key => !['type','password'].includes(key))) {
+    throw new Error('Gecko packet size options cannot be exported in Hysteria2 URI; keep JSON');
+  }
+  const obfsType = firstValue(obfs.type, typeof p.obfs === 'string' ? p.obfs : '', '');
+  const obfsPassword = firstValue(obfs.password, p.obfsPassword, p.obfs_password);
+  if (obfsType && !['salamander','gecko'].includes(obfsType)) throw new Error('unsupported Hysteria2 obfs');
+  if (!obfsType && obfsPassword) throw new Error('Hysteria2 obfs-password requires obfs type');
+  const password = firstValue(p.password, p.auth, p.pass);
+  if (!password) throw new Error('Hysteria2 password is missing');
+  const name = cleanRemarkName(firstValue(profile.name, p.name, p.remarks, p.tag, fallbackName), 'Hysteria2');
   const q = [];
-  addParam(q, 'obfs', firstValue(obfsObj.type, p.obfs, p.obfs_type, p.obfsType));
-  addParam(q, 'obfs-password', firstValue(obfsObj.password, p.obfsPassword, p.obfs_password));
+  addParam(q, 'obfs', obfsType);
+  addParam(q, 'obfs-password', obfsPassword);
   addParam(q, 'sni', firstValue(tls.server_name, tls.serverName, p.sni, p.serverName, p.peer));
-  if (firstValue(tls.insecure, p.insecure, p.allowInsecure) !== '') addParam(q, 'insecure', truthyParam(firstValue(tls.insecure, p.insecure, p.allowInsecure)) ? '1' : '0');
-  addParam(q, 'pinSHA256', firstValue(tls.pinSHA256, tls.pin_sha256, p.pinSHA256, p.pin_sha256));
-  const alpn = firstValue(tls.alpn, p.alpn);
-  if (alpn) addParam(q, 'alpn', Array.isArray(alpn) ? alpn.join(',') : alpn);
-  const scheme = String(firstValue(p.scheme, p.protocol, p.type)).toLowerCase().includes('hy2') ? 'hy2' : 'hysteria2';
-  const authPart = auth ? `${enc(auth)}@` : '';
-  const portPart = portSpec ? `:${portSpec}` : '';
-  const queryPart = q.length ? `?${q.join('&')}` : '';
-  return `${scheme}://${authPart}${formatUriHost(host)}${portPart}/${queryPart}#${enc(name)}`;
+  const insecure = firstValue(tls.insecure, p.insecure, p.allowInsecure);
+  if (insecure !== '') addParam(q, 'insecure', truthyParam(insecure) ? '1' : '0');
+  let scheme = 'hysteria2', authority = '', path = '/';
+  if (p.realm) {
+    if (p.server || p.server_port || p.server_ports) throw new Error('Hysteria2 Realm cannot include direct server fields');
+    const realm = p.realm;
+    if (Object.keys(realm).some(key => !['server_url','token','realm_id','stun_servers'].includes(key))) {
+      throw new Error('Hysteria2 Realm tuning cannot be represented by URI; preserve JSON');
+    }
+    const url = new URL(realm.server_url || '');
+    if (!['http:','https:'].includes(url.protocol) || url.pathname !== '/' || url.search || url.hash || !realm.token || !realm.realm_id) {
+      throw new Error('invalid Hysteria2 Realm server_url, token, or realm_id');
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(realm.realm_id)) throw new Error('invalid Hysteria2 Realm ID');
+    if (!Array.isArray(realm.stun_servers) || !realm.stun_servers.length) {
+      throw new Error('Hysteria2 Realm sing-box config requires explicit stun servers');
+    }
+    scheme = url.protocol === 'http:' ? 'hysteria2+realm+http' : 'hysteria2+realm';
+    authority = `${enc(realm.token)}@${url.host}`;
+    path = '/' + enc(realm.realm_id);
+    addParam(q, 'auth', password);
+    for (const stun of realm.stun_servers) addParam(q, 'stun', stun);
+  } else {
+    const host = firstValue(p.server, p.host);
+    if (!host) throw new Error('Hysteria2 server is missing');
+    const portsValue = p.server_ports || p.serverPorts || p.ports;
+    const portList = Array.isArray(portsValue) ? portsValue.join(',') : String(portsValue || p.serverPortRange || p.server_port || p.serverPort || p.port || '443');
+    const ports = hysteria2PortSegments(portList).join(',');
+    authority = `${enc(password)}@${formatUriHost(host)}:${ports}`;
+  }
+  return `${scheme}://${authority}${path}${q.length ? '?' + q.join('&') : ''}#${enc(name)}`;
 }
 
 function profileToLink(p, fallbackName='') {
