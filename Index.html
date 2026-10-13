@@ -3707,6 +3707,20 @@ function smartRecognizeText(text,name='pasted input'){
   const raw=String(text||'').trim();
   if(!raw)throw new Error('Empty input');
   if(raw.length>1048576)throw new Error('Maximum text input is 1 MB');
+  if(/^NPVO1(?:\s|$)/.test(raw)){
+    let obj;
+    try{obj=JSON.parse(raw.replace(/^NPVO1\s*/,'').trim());}
+    catch(_){throw new Error('Invalid open NPVO1 configuration JSON');}
+    if(!obj||!Array.isArray(obj.configs)||!obj.configs.length)throw new Error('NPVO1 has no configs');
+    const links=[];
+    for(const config of obj.configs){
+      const converted=convertJSONToLinks(config,name);
+      if(converted.errors.length)throw new Error(converted.errors.join('; '));
+      if(!converted.links.length)throw new Error('NPVO1 contains a config without verified share-link mapping');
+      links.push(...converted.links.map(x=>x.link));
+    }
+    return {kind:'npvo',label:'NPVO1 unencrypted NPV export',name,text:raw,links};
+  }
   if(/^NPVT1(?:\s|$)/.test(raw)){
     const res=processTextContent(raw,name,true);
     if(!res.links.length)throw new Error(res.errors.join('; ')||'NPVT1 contained no supported share links');
@@ -3773,7 +3787,19 @@ async function smartRecognizeFile(file){
   }
   const text=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
   if(text.includes('\uFFFD')&&/[\x00-\x08]/.test(text))throw new Error('Unsupported binary format');
-  return smartRecognizeText(text,name);
+  try{return smartRecognizeText(text,name);}
+  catch(originalError){
+    // NetMod legacy encrypted payloads have no identifying magic; a real
+    // successful authenticated JSON/schema check is stronger than the suffix.
+    if(/^[A-Za-z0-9+/\s]+={0,2}$/.test(text.trim())&&text.length>32){
+      try{
+        const obj=await decryptNetMod(bytes);
+        return {kind:'netmod',label:'NetMod AES-ECB SSH/Proxy JSON',name,
+          text:JSON.stringify(obj,null,2),obj,links:[]};
+      }catch(_){ /* not a legacy NetMod encrypted blob */ }
+    }
+    throw originalError;
+  }
 }
 function smartSourceLinks(source){
   if(source.links&&source.links.length)return source.links;
