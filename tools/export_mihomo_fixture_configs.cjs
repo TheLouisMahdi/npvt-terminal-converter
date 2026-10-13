@@ -17,7 +17,7 @@ const items=[
  {type:'trusttunnel',name:'TrustTunnel',server:'trust.example.org',port:443,username:'alice',password:'example-password',quic:false,sni:'trust.example.org'},
  {type:'shadowquic',name:'ShadowQUIC',server:'sq.example.org',port:10443,username:'alice',password:'example-password',alpn:['h3'],'quic-versions':['v1']},
  {type:'mieru',name:'Mieru',server:'mieru.example.org',port:2999,transport:'TCP',username:'alice',password:'example-password',multiplexing:'MULTIPLEXING_LOW'},
- {type:'wireguard',name:'AWG-v3-1','private-key':key,ip:'10.7.0.2',server:'192.0.2.10',port:51820,'public-key':publicKey,'allowed-ips':['0.0.0.0/0'],udp:true,'amnezia-wg-option':{version:3,jc:5,jmin:100,jmax:200,s1:0,s2:0,s3:0,s4:0,h1:123456,h2:234567,h3:345678,h4:456789,'header-protection-key':key,'random-trailers':true,'disable-cookies':true}}
+ {type:'wireguard',name:'AWG-v3-1','private-key':key,ip:'10.7.0.2',server:'192.0.2.10',port:51820,'public-key':publicKey,'allowed-ips':['0.0.0.0/0'],udp:true,'amnezia-wg-option':{version:3,jc:5,jmin:100,jmax:200,s1:20,s2:20,s3:20,s4:20,h1:123456,h2:234567,h3:345678,h4:456789,'header-protection-key':key,'random-trailers':true,'disable-cookies':true}}
 ];
 const output=path.join(root,'tests','generated-mihomo');
 fs.mkdirSync(output,{recursive:true});
