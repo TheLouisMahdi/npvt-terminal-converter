@@ -21,7 +21,7 @@ const nodes=[
  {name:'ShadowQUIC',type:'shadowquic',server:'shadow.example',port:10443,username:'user',password:'secret','quic-versions':['v1'], 'udp-over-stream':false},
  {name:'Mieru',type:'mieru',server:'mieru.example','port-range':'2090-2099',username:'user',password:'secret',transport:'TCP',multiplexing:'MULTIPLEXING_LOW'},
  {name:'AWG3.1',type:'wireguard','private-key':key,ip:'10.7.0.2/32',server:'192.0.2.10',port:51820,'public-key':publicKey,'allowed-ips':['0.0.0.0/0'],udp:true,
-  'amnezia-wg-option':{version:3,jc:5,jmin:100,jmax:200,h1:'111-222',h2:333,'header-protection-key':key,'content-padding-addition':'0-32','random-trailers':true,'disable-cookies':true}}
+  'amnezia-wg-option':{version:3,jc:5,jmin:100,jmax:200,s1:20,s2:20,s3:20,s4:20,h1:'111-222',h2:333,'header-protection-key':key,'content-padding-addition':'0-32','random-trailers':true,'disable-cookies':true}}
 ];
 test('Five remaining Mihomo families preserve all keys JSON to YAML to JSON',()=>{
   const input={proxies:nodes};
@@ -40,7 +40,7 @@ test('Mihomo inline arrays and comments import',()=>{
  assert.deepEqual(p.proxies[1].alpn,['h2','h3']);
 });
 test('WireGuard AWG3.1 INI conversions keep version, obfuscation, keys and peer',()=>{
- const ini=['[Interface]','PrivateKey = '+key,'Address = 10.7.0.2/32','AmneziaWGVersion = 3','Jc = 5','Jmin = 100','Jmax = 200','H1 = 111-222','HeaderProtectionKey = '+key,'ContentPaddingAddition = 0-32','RandomTrailers = true','DisableCookies = true','','[Peer]','PublicKey = '+publicKey,'Endpoint = 192.0.2.10:51820','AllowedIPs = 0.0.0.0/0'].join('\n');
+ const ini=['[Interface]','PrivateKey = '+key,'Address = 10.7.0.2/32','AmneziaWGVersion = 3','Jc = 5','Jmin = 100','Jmax = 200','S1 = 20','S2 = 20','S3 = 20','S4 = 20','H1 = 111-222','HeaderProtectionKey = '+key,'ContentPaddingAddition = 0-32','RandomTrailers = true','DisableCookies = true','','[Peer]','PublicKey = '+publicKey,'Endpoint = 192.0.2.10:51820','AllowedIPs = 0.0.0.0/0'].join('\n');
  const parsed=norm(call('parseWireGuardIni',ini));
  assert.equal(parsed.proxies[0]['amnezia-wg-option'].version,3);
  assert.equal(parsed.proxies[0]['amnezia-wg-option']['random-trailers'],true);
@@ -118,4 +118,23 @@ test('TrustTunnel subscription-only and unmappable TLVs cannot be silently flatt
 test('TrustTunnel malformed length and invalid URL are rejected',()=>{
  assert.throws(()=>call('parseTrustTunnelDeepLink','tt://?AQE'),/Invalid TrustTunnel TLV length|Truncated/);
  assert.throws(()=>call('encodeTrustTunnelDeepLink',{type:'trusttunnel-deeplink',version:2,subscription_url:'http://example.org'}),/HTTPS/);
+});
+
+
+test('AWG3 header protection rejects short padding or invalid keys before export',()=>{
+ const bad={proxies:[{name:'AWG',type:'wireguard','private-key':key,ip:'10.0.0.2/32',
+  server:'192.0.2.1',port:51820,'public-key':publicKey,
+  'amnezia-wg-option':{version:3,s1:0,s2:20,s3:20,s4:20,'header-protection-key':key}}]};
+ assert.throws(()=>vm.runInContext('nativeFormatConvert('+JSON.stringify(JSON.stringify(bad))+',"yaml")',context),/S1-S4 >= 12/);
+ bad.proxies[0]['amnezia-wg-option'].s1=20;
+ bad.proxies[0]['amnezia-wg-option']['header-protection-key']='invalid';
+ assert.throws(()=>vm.runInContext('nativeFormatConvert('+JSON.stringify(JSON.stringify(bad))+',"yaml")',context),/32-byte Base64/);
+});
+test('WireGuard INI export does not include synthetic version keys',()=>{
+ const doc={proxies:[{name:'AWG',type:'wireguard','private-key':key,ip:'10.0.0.2/32',
+  server:'192.0.2.1',port:51820,'public-key':publicKey,
+  'amnezia-wg-option':{version:3,s1:20,s2:20,s3:20,s4:20,'header-protection-key':key}}]};
+ const ini=vm.runInContext('nativeFormatConvert('+JSON.stringify(JSON.stringify(doc))+',"ini")',context);
+ assert.doesNotMatch(ini,/AmneziaWGVersion|^Version = /m);
+ assert.equal(norm(call('parseWireGuardIni',ini)).proxies[0]['amnezia-wg-option'].version,3);
 });
