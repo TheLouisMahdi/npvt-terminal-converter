@@ -1599,6 +1599,18 @@ function outboundToProfiles(outbound, inheritedName='') {
     }
   }
 
+  if (protocol === 'shadowsocks' && outbound.type === 'shadowsocks' &&
+      outbound.server && outbound.server_port) {
+    profiles.push({
+      protocol:'ss',
+      name:baseName,
+      server:outbound.server,
+      serverPort:outbound.server_port,
+      password:outbound.password,
+      method:outbound.method,
+      _sourceOutbound:outbound
+    });
+  }
   if (protocol === 'hysteria2' || protocol === 'hy2' || protocol === 'hysteria') {
     profiles.push({
       protocol: 'hysteria2',
@@ -1879,7 +1891,34 @@ function hysteria2ProfileToLink(profile, fallbackName=''){
   return `${scheme}://${authority}${path}${q.length ? '?' + q.join('&') : ''}#${enc(name)}`;
 }
 
+function shadowsocksOutboundToLink(outbound, name='Shadowsocks'){
+  const allowed = new Set(['type','tag','name','remarks','server','server_port','method','password','plugin','plugin_opts']);
+  if (Object.keys(outbound).some(key => !allowed.has(key))) {
+    throw new Error('Advanced Shadowsocks options require native sing-box JSON');
+  }
+  const host = String(outbound.server || '').trim();
+  const port = Number(outbound.server_port);
+  const method = String(outbound.method || '').trim();
+  const password = String(outbound.password ?? '');
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !method || !password) {
+    throw new Error('Incomplete Shadowsocks outbound');
+  }
+  const plugin = String(outbound.plugin || '');
+  if (plugin && !['obfs-local','v2ray-plugin'].includes(plugin)) {
+    throw new Error('Unsupported SIP003 plugin');
+  }
+  if (!plugin && outbound.plugin_opts) throw new Error('SIP003 options without plugin');
+  const userInfo = method.startsWith('2022-')
+    ? `${enc(method)}:${enc(password)}`
+    : base64UrlUtf8(`${method}:${password}`);
+  const q = plugin ? '/?plugin=' + enc(plugin + (outbound.plugin_opts ? ';' + outbound.plugin_opts : '')) : '';
+  const path = q || '';
+  return `ss://${userInfo}@${formatUriHost(host)}:${port}${path}#${enc(name)}`;
+}
 function profileToLink(p, fallbackName='') {
+  if (p && p._sourceOutbound && p._sourceOutbound.type === 'shadowsocks') {
+    return shadowsocksOutboundToLink(p._sourceOutbound, firstValue(p.name, fallbackName, 'Shadowsocks'));
+  }
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'anytls') return anytlsProfileToLink(p, fallbackName);
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'hysteria2') return hysteria2ProfileToLink(p, fallbackName);
   const explicit = String(firstValue(p && p.protocol, p && p.configProtocol, p && p.outboundProtocol)).toLowerCase();
