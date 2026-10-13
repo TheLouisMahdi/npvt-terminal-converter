@@ -3786,7 +3786,11 @@ function smartSourceLinks(source){
   throw new Error('Source has no verified share URI mapping');
 }
 function smartNativeMihomo(source){
-  if(source.kind==='mihomo'||source.kind==='wireguard'||source.kind==='tt'||source.kind==='tt-json'){
+  if(source.kind==='tt'||source.kind==='tt-json'){
+    const doc=source.kind==='tt'?parseTrustTunnelDeepLink(source.text):JSON.parse(source.text);
+    return ttToMihomo(doc);
+  }
+  if(source.kind==='mihomo'||source.kind==='wireguard'){
     const obj=JSON.parse(nativeFormatConvert(source.text,'json'));
     if(!Array.isArray(obj.proxies))throw new Error('This source cannot be represented as Mihomo nodes');
     return validateMihomoNodes(obj);
@@ -3875,6 +3879,99 @@ function smartAvailable(records){
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
+const smartState={records:[],outputs:{}};
+function smartRender(){
+  const detected=$('smartDetected'),status=$('smartStatus'),select=$('smartTarget');
+  const outputs=smartState.outputs,previous=select.value;
+  const formats=Object.keys(outputs);
+  select.replaceChildren();
+  if(!formats.length){
+    select.add(new Option('No compatible conversion detected',''));
+    select.disabled=true;
+    $('smartOutput').value='';
+    $('smartCopy').disabled=$('smartDownload').disabled=true;
+  }else{
+    for(const key of formats)select.add(new Option(SMART_TARGETS[key].label,key));
+    select.disabled=false;
+    select.value=formats.includes(previous)?previous:formats[0];
+    smartChooseTarget();
+  }
+  detected.textContent=smartState.records.length
+    ?smartState.records.map((r,i)=>(i+1)+'. '+r.name+': '+r.label).join('\n')
+    :'No input yet';
+  status.textContent=smartState.records.length
+    ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
+      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')
+    :'Ready. Files are processed entirely in this browser.';
+}
+function smartChooseTarget(){
+  const target=$('smartTarget').value;
+  const data=smartState.outputs[target]||'';
+  $('smartOutput').value=data;
+  $('smartCopy').disabled=$('smartDownload').disabled=!data;
+}
+function smartCommit(records){
+  smartState.records=records;
+  smartState.outputs=smartAvailable(records);
+  smartRender();
+}
+let smartDebounce;
+$('smartInput').addEventListener('input',()=>{
+  clearTimeout(smartDebounce);
+  smartDebounce=setTimeout(()=>{
+    $('smartFiles').value='';
+    const value=$('smartInput').value.trim();
+    if(!value){smartCommit([]);return;}
+    try{smartCommit([smartRecognizeText(value)]);}
+    catch(e){smartCommit([]);$('smartStatus').textContent='Input not recognized: '+(e.message||e);}
+  },220);
+});
+async function smartImportFiles(files){
+  if(!files||!files.length)return;
+  if(files.length>80){$('smartStatus').textContent='Maximum 80 files per batch.';return;}
+  $('smartInput').value='';
+  $('smartStatus').textContent='Inspecting files locally…';
+  const records=[],issues=[];
+  for(const file of files){
+    try{records.push(await smartRecognizeFile(file));}
+    catch(e){issues.push(file.name+': '+(e.message||e));}
+  }
+  smartCommit(records);
+  if(issues.length){
+    $('smartStatus').textContent+='\n'+issues.length+' source(s) rejected:\n'+issues.slice(0,8).join('\n');
+  }
+}
+$('smartFiles').addEventListener('change',e=>smartImportFiles(Array.from(e.target.files||[])));
+$('smartDrop').addEventListener('click',()=>$('smartFiles').click());
+$('smartDrop').addEventListener('keydown',e=>{
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();$('smartFiles').click();}
+});
+$('smartDrop').addEventListener('dragover',e=>{e.preventDefault();$('smartDrop').classList.add('over');});
+$('smartDrop').addEventListener('dragleave',()=>$('smartDrop').classList.remove('over'));
+$('smartDrop').addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();$('smartDrop').classList.remove('over');
+  smartImportFiles(Array.from(e.dataTransfer.files||[]));
+});
+$('smartTarget').addEventListener('change',smartChooseTarget);
+$('smartCopy').addEventListener('click',async()=>{
+  const content=$('smartOutput').value;
+  if(!content)return;
+  try{await copyText(content);$('smartStatus').textContent='Output copied locally.';}
+  catch(_){$('smartStatus').textContent='Clipboard blocked: select the output text manually.';}
+});
+$('smartDownload').addEventListener('click',()=>{
+  const kind=$('smartTarget').value,content=$('smartOutput').value;
+  if(!kind||!content)return;
+  const ext=SMART_TARGETS[kind].ext;
+  downloadText('converted-config.'+ext,content,ext==='json'?'application/json;charset=utf-8':'text/plain;charset=utf-8');
+});
+$('smartReset').addEventListener('click',()=>{
+  clearTimeout(smartDebounce);
+  $('smartFiles').value='';$('smartInput').value='';
+  smartCommit([]);
+});
+smartRender();
+
 $('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
 $('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
 $('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));
