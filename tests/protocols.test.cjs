@@ -153,12 +153,9 @@ test('Hysteria2 Realm HTTP scheme is preserved across JSON conversion', () => {
   assert.match(result.links[0].link, /^hysteria2\+realm\+http:\/\//);
 });
 
-test('Hysteria2 ECH, pins and unsupported Gecko tuning never disappear silently', () => {
+test('Hysteria2 rejects unsupported certificate pins and Gecko tuning', () => {
   assert.throws(
-    () => run("parseHysteria2Share('hy2://pass@host:443/?ech=YQ==')"), /ECH\/pinSHA256/
-  );
-  assert.throws(
-    () => run("parseHysteria2Share('hy2://pass@host:443/?pinSHA256=abc')"), /ECH\/pinSHA256/
+    () => run("parseHysteria2Share('hy2://pass@host:443/?pinSHA256=abc')"), /certificate hash/
   );
   const config = {outbounds: [{
     type:'hysteria2', server:'host', server_port:443, password:'pass',
@@ -200,4 +197,31 @@ test('Advanced native Hysteria2 JSON survives the full-configuration export path
   assert.equal(output.objects[0].object.outbounds[0].hop_interval_max, '60s');
   assert.equal(output.objects[0].object.outbounds[0].bbr_profile, 'aggressive');
   assert.equal(output.objects[0].object.outbounds[0].obfs.min_packet_size, 512);
+});
+
+test('Hysteria2 ECH Base64 round-trips to native sing-box PEM lines', () => {
+  const sample = btoa(String.fromCharCode(0,4,0xfe,0x0d,0,0));
+  const uri = `hy2://pw@example.org:443/?ech=${encodeURIComponent(sample)}&sni=cdn.example#ECH`;
+  const parsed = json(`parseHysteria2Share(${JSON.stringify(uri)})`);
+  assert.equal(parsed.outbound.tls.ech.enabled, true);
+  assert.equal(parsed.outbound.tls.ech.config[0], '-----BEGIN ECH CONFIGS-----');
+  assert.equal(parsed.outbound.tls.ech.config.at(-1), '-----END ECH CONFIGS-----');
+  const roundTrip = json(`convertJSONToLinks({outbounds:[${JSON.stringify(parsed.outbound)}]})`);
+  assert.equal(roundTrip.errors.length, 0);
+  const url = new URL(roundTrip.links[0].link);
+  assert.equal(url.searchParams.get('ech'), sample);
+});
+
+test('Hysteria2 ECH configs reject private key material and unsupported settings', () => {
+  const outbound = {
+    type:'hysteria2', server:'example.org', server_port:443,
+    password:'pw', tls:{enabled:true,ech:{enabled:true, key:['private']}}
+  };
+  const result = json(`convertJSONToLinks({outbounds:[${JSON.stringify(outbound)}]})`);
+  assert.equal(result.links.length, 0);
+  assert.match(result.errors.join(' '), /unsupported Hysteria2 ECH/);
+});
+
+test('Invalid Hysteria2 ECH length fails closed', () => {
+  assert.throws(() => run("parseHysteria2Share('hy2://pass@host:443/?ech=YQ==')"), /ECHConfigList length/);
 });
