@@ -162,6 +162,14 @@ Sources:
 
 ---
 
+## October 2026 core compatibility review
+
+A dated comparison of Xray-core, sing-box, Mihomo, V2Fly and Hysteria releases is available in [the Q3 2026 compatibility matrix](docs/CORE_COMPAT_2026_Q3.md). Current automated checks cover sing-box 1.14.3 and Xray 26.7.28 plus 26.10.10 preview, using official Core binaries. A passing config check validates a selected JSON fixture, not every supported server or live handshake.
+
+Shadowsocks 2022 URIs follow SIP022 percent-encoded credentials. SIP003 plugin links can export native sing-box JSON when their plugin is supported. They cannot be silently downgraded to plain Shadowsocks or assumed compatible with NPVT1. Unknown protocol types remain native-only until a documented share format and tests are provided.
+
+---
+
 ## Protocol compatibility and tests
 
 The converter supports standard [AnyTLS share URIs](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md) with password, server, port, SNI, and insecure TLS settings. AnyTLS link inputs export as native sing-box JSON. Basic sing-box AnyTLS outbounds can export to standard share URIs.

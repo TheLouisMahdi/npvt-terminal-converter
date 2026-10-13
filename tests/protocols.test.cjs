@@ -289,3 +289,65 @@ test('Malformed XHTTP extra JSON and modes are rejected', () => {
   assert.throws(() => run("parseStandardShare('vless://a@server:443?type=xhttp&extra=%7Bbroken')"), /invalid XHTTP extra/);
   assert.throws(() => run("parseStandardShare('vless://a@server:443?type=xhttp&mode=bad')"), /invalid XHTTP mode/);
 });
+
+
+test('Shadowsocks 2022 uses raw encoded credentials instead of Base64URL', () => {
+  const key = 'YctPZ6U7xPPcU+gp3u+0tx/tRizJN9K8y+uKlW2qjlI=';
+  const p = {protocol:'ss', server:'example.org',serverPort:8388,password:key,method:'2022-blake3-aes-256-gcm',name:'SS2022'};
+  const uri = run(`profileToLink(${JSON.stringify(p)})`);
+  assert.match(uri, /^ss:\/\/2022-blake3-aes-256-gcm:/);
+  assert.match(uri, /%2B/);
+  const parsed = json(`parseSsShare(${JSON.stringify(uri)})`);
+  assert.equal(parsed.password, key);
+  assert.equal(parsed.method, '2022-blake3-aes-256-gcm');
+});
+
+test('SIP003 plugin maps to native sing-box JSON without dropping options', () => {
+  const uri = 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388/?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dcdn.example#Node';
+  assert.throws(() => run(`parseSsShare(${JSON.stringify(uri)})`), /SIP003 plugin/);
+  const obj = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(uri)}})`);
+  assert.equal(obj.outbounds[0].type, 'shadowsocks');
+  assert.equal(obj.outbounds[0].plugin, 'obfs-local');
+  assert.equal(obj.outbounds[0].plugin_opts, 'obfs=http;obfs-host=cdn.example');
+  assert.equal(obj.outbounds[0].server_port, 8388);
+  assert.equal(obj.outbounds[0].password, 'pass');
+  assert.equal(run(`isNpvtBuildSupportedLink(${JSON.stringify(uri)})`), false);
+});
+
+test('Unknown native protocols are not relabeled as VLESS links', () => {
+  const outbounds = [
+    {type:'snell',server:'snell.example',server_port:443,password:'key'},
+    {type:'trusttunnel',server:'trust.example',server_port:443,password:'secret'},
+  ];
+  const output = json(`convertJSONToLinks({outbounds:${JSON.stringify(outbounds)}})`);
+  assert.equal(output.links.length, 0);
+  assert.match(output.errors.join(' '), /Unsupported native protocol/);
+});
+
+test('Unknown SIP003 plugin is rejected, not silently converted', () => {
+  const uri = 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:443/?plugin=unknown-plugin%3Bfoo%3Dbar';
+  assert.throws(() => run(`linkItemToStandaloneJsonObject({link:${JSON.stringify(uri)}})`), /unsupported Shadowsocks plugin/);
+});
+
+
+test('Shadowsocks plugin native sing-box JSON round-trips to SIP002 URI', () => {
+  const uri = 'ss://YWVzLTEyOC1nY206cGFzcw@example.org:8388/?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dcdn.example#Node';
+  const native = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(uri)}})`);
+  const converted = json(`convertJSONToLinks(${JSON.stringify(native)})`);
+  assert.equal(converted.errors.length, 0, converted.errors.join('; '));
+  assert.equal(converted.links.length, 1);
+  const back = new URL(converted.links[0].link);
+  assert.equal(back.searchParams.get('plugin'), 'obfs-local;obfs=http;obfs-host=cdn.example');
+  assert.equal(back.hostname, 'example.org');
+});
+
+test('Shadowsocks unknown native options do not disappear into share URI', () => {
+  const config = {outbounds:[{
+    type:'shadowsocks', server:'example.org',server_port:443,
+    method:'aes-128-gcm',password:'secret', plugin:'obfs-local',
+    plugin_opts:'obfs=http', multiplex:{enabled:true}
+  }]};
+  const converted = json(`convertJSONToLinks(${JSON.stringify(config)})`);
+  assert.equal(converted.links.length, 0);
+  assert.match(converted.errors.join(' '), /Advanced Shadowsocks options/);
+});

@@ -27,3 +27,12 @@ jobs:
             echo "Checking $file"
             docker run --rm --network none -v "$PWD/tests/generated-xray:/checks:ro" "$image" run -test -config "/checks/${file##*/}"
           done
+
+      - name: Check latest Xray prerelease 26.10.10
+        run: |
+          image="ghcr.io/xtls/xray-core:26.10.10@sha256:ac00cba4be8f428fc65c8c9a4e4c8fa55e3f6270d8a8d54316100ff3946899ce"
+          docker pull "$image"
+          for file in tests/generated-xray/*.json; do
+            echo "Checking preview $file"
+            docker run --rm --network none -v "$PWD/tests/generated-xray:/checks:ro" "$image" run -test -config "/checks/${file##*/}"
+          done

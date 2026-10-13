@@ -766,7 +766,12 @@ function parseSsShare(link){
   const hashIdx = body.indexOf('#');
   if (hashIdx >= 0) { hash = body.slice(hashIdx + 1); body = body.slice(0, hashIdx); }
   const qIdx = body.indexOf('?');
-  if (qIdx >= 0) body = body.slice(0, qIdx);
+  if (qIdx >= 0) {
+    const params = new URLSearchParams(body.slice(qIdx + 1));
+    if (params.has('plugin')) throw new Error('SIP003 plugin requires native sing-box JSON; cannot silently remove it');
+    body = body.slice(0, qIdx);
+  }
+  body = body.replace(/\/$/, '');
   let userInfo = '', hostPort = '';
   const at = body.lastIndexOf('@');
   if (at >= 0) {
@@ -805,6 +810,25 @@ function parseSsShare(link){
   };
 }
 
+function shadowsocksPluginToSingBox(link, index=0){
+  const raw = String(link || '').trim();
+  const uri = raw.split('#')[0];
+  const qIndex = uri.indexOf('?');
+  if (qIndex < 0) throw new Error('missing Shadowsocks plugin');
+  const spec = new URLSearchParams(uri.slice(qIndex + 1)).get('plugin');
+  if (!spec) throw new Error('missing Shadowsocks plugin');
+  const [plugin, ...parts] = spec.split(';');
+  if (!['obfs-local','v2ray-plugin'].includes(plugin)) throw new Error('unsupported Shadowsocks plugin; preserve the original URI');
+  const plain = raw.slice(0, raw.indexOf('?')) + (raw.includes('#') ? raw.slice(raw.indexOf('#')) : '');
+  const parsed = parseSsShare(plain);
+  const port = Number(parsed.serverPort);
+  if (!parsed.server || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid Shadowsocks port');
+  return buildSingBoxConfigFromOutbound({
+    type:'shadowsocks', tag:'proxy', server:parsed.server,
+    server_port:port, method:parsed.method, password:parsed.password,
+    plugin, plugin_opts:parts.join(';')
+  }, parsed.name || `Config ${index+1}`);
+}
 function parseLooseShareUri(link){
   const str = String(link || '').trim();
   const m = str.match(/^([A-Za-z0-9+.-]+):\/\/(.*)$/);
@@ -1575,6 +1599,18 @@ function outboundToProfiles(outbound, inheritedName='') {
     }
   }
 
+  if (protocol === 'shadowsocks' && outbound.type === 'shadowsocks' &&
+      outbound.server && outbound.server_port) {
+    profiles.push({
+      protocol:'ss',
+      name:baseName,
+      server:outbound.server,
+      serverPort:outbound.server_port,
+      password:outbound.password,
+      method:outbound.method,
+      _sourceOutbound:outbound
+    });
+  }
   if (protocol === 'hysteria2' || protocol === 'hy2' || protocol === 'hysteria') {
     profiles.push({
       protocol: 'hysteria2',
@@ -1855,9 +1891,42 @@ function hysteria2ProfileToLink(profile, fallbackName=''){
   return `${scheme}://${authority}${path}${q.length ? '?' + q.join('&') : ''}#${enc(name)}`;
 }
 
+function shadowsocksOutboundToLink(outbound, name='Shadowsocks'){
+  const allowed = new Set(['type','tag','name','remarks','server','server_port','method','password','plugin','plugin_opts']);
+  if (Object.keys(outbound).some(key => !allowed.has(key))) {
+    throw new Error('Advanced Shadowsocks options require native sing-box JSON');
+  }
+  const host = String(outbound.server || '').trim();
+  const port = Number(outbound.server_port);
+  const method = String(outbound.method || '').trim();
+  const password = String(outbound.password ?? '');
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !method || !password) {
+    throw new Error('Incomplete Shadowsocks outbound');
+  }
+  const plugin = String(outbound.plugin || '');
+  if (plugin && !['obfs-local','v2ray-plugin'].includes(plugin)) {
+    throw new Error('Unsupported SIP003 plugin');
+  }
+  if (!plugin && outbound.plugin_opts) throw new Error('SIP003 options without plugin');
+  const userInfo = method.startsWith('2022-')
+    ? `${enc(method)}:${enc(password)}`
+    : base64UrlUtf8(`${method}:${password}`);
+  const q = plugin ? '/?plugin=' + enc(plugin + (outbound.plugin_opts ? ';' + outbound.plugin_opts : '')) : '';
+  const path = q || '';
+  return `ss://${userInfo}@${formatUriHost(host)}:${port}${path}#${enc(name)}`;
+}
 function profileToLink(p, fallbackName='') {
+  if (p && p._sourceOutbound && p._sourceOutbound.type === 'shadowsocks') {
+    return shadowsocksOutboundToLink(p._sourceOutbound, firstValue(p.name, fallbackName, 'Shadowsocks'));
+  }
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'anytls') return anytlsProfileToLink(p, fallbackName);
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'hysteria2') return hysteria2ProfileToLink(p, fallbackName);
+  const explicit = String(firstValue(p && p.protocol, p && p.configProtocol, p && p.outboundProtocol)).toLowerCase();
+  const native = p && p.type && p.server_port ? String(p.type).toLowerCase() : '';
+  if ((explicit && !['vless','vmess','trojan','ss','shadowsocks','socks','hysteria2','hy2','anytls'].includes(explicit)) ||
+      (native && !['vless','vmess','trojan','ss','shadowsocks','socks','hysteria2','hy2','anytls'].includes(native))) {
+    throw new Error(`Unsupported native protocol ${explicit || native}; keep the original JSON`);
+  }
   const n = normalizedProfile(p, fallbackName);
   if (!n.host || !n.port) throw new Error('missing host/port');
   const protocol = detectProtocol(p);
@@ -1939,8 +2008,8 @@ function profileToLink(p, fallbackName='') {
   if (protocol === 'ss') {
     const method = n.method && n.method !== 'none' ? n.method : 'aes-128-gcm';
     if (!n.id) throw new Error('missing Shadowsocks password');
-    const userInfo = base64UrlUtf8(`${method}:${n.id}`);
-    return `ss://${userInfo}@${n.host}:${n.port}#${tag}`;
+    const userInfo = method.startsWith('2022-') ? `${enc(method)}:${enc(n.id)}` : base64UrlUtf8(`${method}:${n.id}`);
+    return `ss://${userInfo}@${formatUriHost(n.host)}:${n.port}#${tag}`;
   }
   if (protocol === 'socks') {
     const auth = n.username && n.password ? `${enc(n.username)}:${enc(n.password)}@` : '';
@@ -1952,6 +2021,18 @@ function convertJSONToLinks(obj, sourceName='') {
   const links = [];
   const errors = [];
   const profiles = flattenJSONProfiles(obj);
+  const supported = new Set(['vless','vmess','trojan','shadowsocks','ss','socks','hysteria2','hy2','hysteria','tuic','anytls']);
+  const configs = Array.isArray(obj) ? obj : [obj];
+  for (const config of configs) {
+    if (!config || !Array.isArray(config.outbounds)) continue;
+    for (const outbound of config.outbounds) {
+      if (!outbound || !outbound.server || !outbound.server_port) continue;
+      const type = String(outbound.type || outbound.protocol || '').toLowerCase();
+      if (type && !supported.has(type)) {
+        errors.push(`Unsupported native protocol ${type}; keep the original JSON, no safe share URI mapping`);
+      }
+    }
+  }
 
   // Prefer structural JSON conversion when real Xray/NPV profiles exist.
   // Some full configs contain WebSocket strings like wss://[host]/ or routing URLs;
@@ -2231,6 +2312,7 @@ function processForwardText(){
 function isNpvtBuildSupportedLink(link){
   const proto = String(link || '').split('://')[0].toLowerCase();
   if (!['vless','vmess','trojan','ss','shadowsocks','socks'].includes(proto)) return false;
+  if (['ss','shadowsocks'].includes(proto) && /[?&]plugin=/.test(String(link).split('#')[0])) return false;
   if (proto === 'vless') {
     try {
       const url = new URL(link);
@@ -2357,6 +2439,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   if (!link) throw new Error('empty link');
   const proto = String(link.split('://')[0] || '').toLowerCase();
   if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
+  if (proto === 'ss' && /[?&]plugin=/.test(link.split('#')[0])) return shadowsocksPluginToSingBox(link, index);
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
