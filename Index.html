@@ -3160,6 +3160,7 @@ function parseMihomoYaml(input){
     const isList=/^-(?:\s|$)/.test(tokens[pos].body);
     const out=isList?[]:{};
     while(pos<tokens.length&&tokens[pos].indent===indent){
+      if(isList&&!/^-(?:\s|$)/.test(tokens[pos].body))break;
       const t=tokens[pos++];
       if(isList){
         if(!/^-(?:\s|$)/.test(t.body))throw new Error('Mixed YAML array/map at '+t.line);
@@ -3180,7 +3181,7 @@ function parseMihomoYaml(input){
         const key=String(nativeYamlScalar(m[1]));
         if(!key||['__proto__','constructor','prototype'].includes(key)||Object.prototype.hasOwnProperty.call(out,key))throw new Error('Duplicate or unsafe YAML key '+key);
         if(m[2]!==undefined)out[key]=nativeYamlScalar(m[2]);
-        else if(pos<tokens.length&&tokens[pos].indent>indent)out[key]=parseBlock(tokens[pos].indent);
+        else if(pos<tokens.length && (tokens[pos].indent>indent || (tokens[pos].indent===indent && /^-(?:\s|$)/.test(tokens[pos].body)))) out[key]=parseBlock(tokens[pos].indent);
         else out[key]=null;
       }
     }
