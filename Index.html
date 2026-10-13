@@ -840,6 +840,33 @@ function qFirst(q, names, fallback=''){
   }
   return fallback;
 }
+
+function hysteriaEchToPem(encoded){
+  const raw = String(encoded || '').trim();
+  if (!raw || raw.length > 8192 || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) throw new Error('invalid Hysteria2 ECH config list');
+  let bytes;
+  try { bytes = b64ToBytes(raw); } catch (_) { throw new Error('invalid Hysteria2 ECH base64'); }
+  if (bytes.length < 4 || (bytes[0] * 256 + bytes[1]) !== bytes.length - 2) {
+    throw new Error('invalid Hysteria2 ECHConfigList length');
+  }
+  const canonical = bytesToBase64(bytes);
+  const lines = canonical.match(/.{1,64}/g) || [];
+  return ['-----BEGIN ECH CONFIGS-----', ...lines, '-----END ECH CONFIGS-----'];
+}
+
+function hysteriaPemToEch(ech){
+  if (!ech || ech.enabled !== true || !Array.isArray(ech.config) || !ech.config.length ||
+      Object.keys(ech).some(key => !['enabled','config'].includes(key))) {
+    throw new Error('unsupported Hysteria2 ECH config; preserve native JSON');
+  }
+  const pem = ech.config.join('\n').trim();
+  const match = pem.match(/^-----BEGIN ECH CONFIGS-----\s+([A-Za-z0-9+/=\s]+)\s+-----END ECH CONFIGS-----$/);
+  if (!match) throw new Error('invalid Hysteria2 ECH PEM');
+  const base64 = match[1].replace(/\s+/g, '');
+  hysteriaEchToPem(base64);
+  return base64;
+}
+
 function hysteria2PortSegments(spec, toSingBox=false){
   const parts = String(spec || '443').split(',');
   if (!parts.length || parts.some(p => !p.trim())) throw new Error('invalid Hysteria2 port list');
@@ -866,8 +893,8 @@ function parseHysteria2Share(link){
   // Hysteria uses base64 ECH config lists and certificate fingerprints, whereas
   // sing-box expects PEM ECH configuration and different certificate pin fields.
   // Do not silently produce an invalid or weakened native config.
-  if (u.query.has('ech') || u.query.has('pinSHA256')) {
-    throw new Error('ECH/pinSHA256 requires a verified native mapping; keep the original Hysteria2 URI');
+  if (u.query.has('pinSHA256')) {
+    throw new Error('pinSHA256 is a certificate hash, not the sing-box public key pin; keep the Hysteria2 URI');
   }
   if (!isRealm && (u.query.has('stun') || u.query.has('auth') || u.query.has('lport'))) {
     throw new Error('Realm-only options are not valid in a normal Hysteria2 URI');
@@ -908,6 +935,7 @@ function parseHysteria2Share(link){
   if (u.query.has('sni')) outbound.tls.server_name = u.query.get('sni');
   if (u.query.has('insecure')) outbound.tls.insecure = boolFromParams(u.query, ['insecure']);
   if (u.query.has('alpn')) outbound.tls.alpn = alpnList(u.query.get('alpn'));
+  if (u.query.has('ech')) outbound.tls.ech = {enabled: true, config: hysteriaEchToPem(u.query.get('ech'))};
   if (u.query.has('network')) outbound.network = u.query.get('network');
   for (const [key, field] of [['upmbps','up_mbps'],['downmbps','down_mbps']]) {
     if (u.query.has(key)) {
@@ -1731,7 +1759,7 @@ function hysteria2ProfileToLink(profile, fallbackName=''){
   }
   const tls = p.tls && typeof p.tls === 'object' ? p.tls : {};
   for (const [key, value] of Object.entries(tls)) {
-    if (!['enabled','server_name','serverName','insecure'].includes(key) &&
+    if (!['enabled','server_name','serverName','insecure','ech'].includes(key) &&
         value !== undefined && value !== null && value !== '') {
       throw new Error(`Hysteria2 TLS option ${key} has no standard URI mapping; export full JSON`);
     }
@@ -1752,6 +1780,7 @@ function hysteria2ProfileToLink(profile, fallbackName=''){
   addParam(q, 'obfs', obfsType);
   addParam(q, 'obfs-password', obfsPassword);
   addParam(q, 'sni', firstValue(tls.server_name, tls.serverName, p.sni, p.serverName, p.peer));
+  if (tls.ech) addParam(q, 'ech', hysteriaPemToEch(tls.ech));
   const insecure = firstValue(tls.insecure, p.insecure, p.allowInsecure);
   if (insecure !== '') addParam(q, 'insecure', truthyParam(insecure) ? '1' : '0');
   let scheme = 'hysteria2', authority = '', path = '/';
