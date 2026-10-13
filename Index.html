@@ -3745,6 +3745,8 @@ function smartRecognizeText(text,name='pasted input'){
     validateMihomoNodes(doc);
     return {kind:'mihomo',label:'Mihomo / Clash YAML',name,text:raw,links:[]};
   }
+  if(/^(?:nm-v\d+|npvs|ssr|ssd|happ|ehi|hat|dark|masque):\/\//i.test(raw))
+    return {kind:'unsupported',label:'Recognized external format (adapter unavailable)',name,text:raw,links:[]};
   const links=extractRawLinks(raw);
   if(links.length){
     if(links.some(x=>!['vless','vmess','trojan','ss','socks','hy2','hysteria','hysteria2','hysteria2+realm','hysteria2+realm+http','tuic','anytls','tt'].includes(x.split('://')[0].toLowerCase())))
@@ -3756,8 +3758,6 @@ function smartRecognizeText(text,name='pasted input'){
     const subLinks=extractRawLinks(decoded);
     if(subLinks.length)return {kind:'subscription',label:'Base64 proxy subscription',name,text:raw,links:subLinks};
   }
-  if(/^(?:nm-v\d+|npvs|ssr|ssd|happ|ehi|hat|dark|masque):\/\//i.test(raw))
-    return {kind:'unsupported',label:'Recognized external format (adapter unavailable)',name,text:raw,links:[]};
   throw new Error('Unknown configuration format. Paste a full config or choose a supported file.');
 }
 async function smartRecognizeFile(file){
