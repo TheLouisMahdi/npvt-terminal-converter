@@ -21,7 +21,7 @@ jobs:
       - run: node tools/export_fixture_configs.cjs
       - name: Check generated JSON with sing-box 1.14.3
         run: |
-          image="ghcr.io/sagernet/sing-box:v1.14.3"
+          image="ghcr.io/sagernet/sing-box:v1.14.3@sha256:80c639ba467885b28511fb7c980565c2d30a8752f778e7bc8abdbc91fbfd95ec"
           docker pull "$image"
           for file in tests/generated/*.json; do
             echo "Checking $file"
