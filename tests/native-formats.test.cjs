@@ -138,3 +138,13 @@ test('WireGuard INI export does not include synthetic version keys',()=>{
  assert.doesNotMatch(ini,/AmneziaWGVersion|^Version = /m);
  assert.equal(norm(call('parseWireGuardIni',ini)).proxies[0]['amnezia-wg-option'].version,3);
 });
+
+
+test('Mihomo official indentless proxies list imports without losing top-level keys',()=>{
+ const yaml="mixed-port: 7890\nproxies:\n- name: Snell\n  type: snell\n  server: server.example\n  port: 44046\n  psk: secret\nrules:\n- MATCH,DIRECT\n";
+ const parsed=norm(call('parseMihomoYaml',yaml));
+ assert.equal(parsed.proxies.length,1);
+ assert.equal(parsed.proxies[0].psk,'secret');
+ assert.deepEqual(parsed.rules,['MATCH,DIRECT']);
+ assert.equal(parsed['mixed-port'],7890);
+});
