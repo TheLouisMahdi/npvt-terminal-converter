@@ -82,7 +82,12 @@ async function run() {
       assert.match(await page.locator('#jsonOutput').inputValue(),/vless:\/\//);
       await page.locator('#nativeInput').fill(native);
       await page.locator('#nativeToYaml').click();
-      await page.locator('#nativeTools').scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => !document.getElementById('toast').classList.contains('show'), null, {timeout:5000});
+      await page.evaluate(() => {
+        const nativePanel=document.getElementById('nativeTools');
+        window.scrollTo({top:Math.max(0,nativePanel.getBoundingClientRect().top+window.scrollY-75),behavior:'instant'});
+      });
+      await page.waitForTimeout(100);
       await page.screenshot({path:path.join(capture,'native-'+viewport.label+'.png'),animations:'disabled'});
       await page.locator('#nativeClear').click();
       await page.locator('#clearForward').click();
