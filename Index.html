@@ -246,6 +246,31 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   .actions,.controls{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}
 }
+
+/* Universal workspace: only one visible upload and one output. Legacy elements
+   remain mounted for stable parser/runtime compatibility, not user interaction. */
+.workflow-nav,.terminal-card,.json-grid,#resultsTable{display:none!important}
+.smart-workspace{margin:0 0 22px;padding:22px;border-radius:22px;background:rgba(2,15,8,.83)}
+.smart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.smart-head h2{font-size:22px;margin:0 0 5px}
+.smart-head p{font-size:13px;line-height:1.5;color:var(--muted);margin:0}
+.smart-status-indicator{font:700 10px var(--mono);letter-spacing:.06em;color:var(--green);border:1px solid var(--line2);padding:7px 10px;border-radius:100px}
+.smart-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.smart-input,.smart-result{min-width:0;display:flex;flex-direction:column;gap:10px}
+.smart-drop{border:1px dashed var(--line2);border-radius:17px;padding:23px 15px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:rgba(57,255,136,.035);text-align:center}
+.smart-drop strong{color:var(--green3);font:700 14px var(--mono)}
+.smart-drop span{color:var(--muted);font:11px var(--mono)}
+.smart-drop:hover,.smart-drop:focus-visible,.smart-drop.over{border-color:var(--green);background:rgba(57,255,136,.10);outline:none}
+.smart-workspace textarea{min-height:270px;flex:1;border-radius:15px}
+.smart-result select{background:#06150b;color:var(--green3);border:1px solid var(--line2);padding:13px;border-radius:12px;min-height:46px;font:12px var(--mono);max-width:100%}
+.smart-result select:disabled{opacity:.5}
+.smart-detected{border:1px solid var(--line);background:rgba(0,0,0,.24);border-radius:13px;padding:10px;color:var(--muted);font:12px/1.6 var(--mono);min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}
+.smart-buttons{display:flex;flex-wrap:wrap;gap:9px}
+.smart-buttons .btn{flex:1 1 auto;justify-content:center}
+#smartStatus{max-height:150px;overflow-y:auto}
+@media(max-width:860px){.smart-columns{grid-template-columns:1fr}.smart-workspace textarea{min-height:185px}.smart-workspace{padding:14px}}
+@media(max-width:500px){.hero-panel{display:none}.smart-head h2{font-size:19px}.smart-status-indicator{font-size:9px}.smart-buttons .btn{min-width:0}}
+
 </style>
 </head>
 <body>
@@ -254,13 +279,11 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   <section class="hero">
     <div class="hero-copy">
       <div class="kicker">privacy-first / single-file / terminal converter</div>
-      <h1>NPV Tunnel NPVT Converter<span class="caret">_</span></h1>
-      <p>Convert NPVT1, proxy links, Xray/sing-box JSON and Mihomo YAML locally. Use the workflow below for NPVT imports, share links or native configurations. Unsupported mappings are reported instead of silently dropping fields.</p>
+      <h1>Smart Config Converter<span class="caret">_</span></h1>
+      <p>One input for many proxy formats. The converter detects each source and offers only supported exports. Encrypted formats without available keys are identified, not guessed.</p>
       <div class="hero-actions">
-        <a class="btn primary" href="#npvtToLinks">Start conversion</a>
-        <a class="btn secondary" href="#linksToNpvt">Build NPVT</a>
-        <a class="btn secondary" href="#jsonTools">JSON tools</a>
-        <a class="btn secondary" href="#nativeTools">Native formats</a>
+        <a class="btn primary" href="#smartWorkspace">Start conversion</a>
+        
       </div>
     </div>
     <aside class="hero-panel" aria-label="Runtime overview">
@@ -288,6 +311,36 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
         <div class="node">Extract / Encrypt</div>
       </div>
     </aside>
+  </section>
+
+  <section id="smartWorkspace" class="panel smart-workspace">
+    <div class="smart-head">
+      <div><h2>Universal converter</h2><p>Import once. Detected formats determine the available exports. Runs locally.</p></div>
+      <span class="smart-status-indicator">OFFLINE</span>
+    </div>
+    <div class="smart-columns">
+      <div class="smart-input">
+        <label class="input-label" for="smartInput">Input · paste configs or load files</label>
+        <div id="smartDrop" class="smart-drop" role="button" tabindex="0" aria-label="Select files or drop configurations">
+          <strong>Choose / drop files</strong>
+          <span>Multiple files · NPVT, NPVS, NM, JSON, YAML, INI, TXT, subscriptions</span>
+        </div>
+        <input type="file" id="smartFiles" multiple accept=".npvt,.npvs,.nm,.json,.yaml,.yml,.ini,.conf,.txt,.base64,*/*" hidden>
+        <textarea id="smartInput" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
+        <div id="smartDetected" class="smart-detected" aria-live="polite">No input yet</div>
+      </div>
+      <div class="smart-result">
+        <label class="input-label" for="smartTarget">Output format · compatible options only</label>
+        <select id="smartTarget" disabled aria-label="Compatible output format"><option value="">Detect input first</option></select>
+        <textarea id="smartOutput" readonly spellcheck="false" placeholder="After detection choose an available output format."></textarea>
+        <div class="smart-buttons">
+          <button class="btn primary" type="button" id="smartDownload" disabled>Download</button>
+          <button class="btn secondary" type="button" id="smartCopy" disabled>Copy</button>
+          <button class="btn bad" type="button" id="smartReset">Clear</button>
+        </div>
+        <div class="log" role="status" aria-live="polite" id="smartStatus">Ready. Nothing is sent to a server.</div>
+      </div>
+    </div>
   </section>
   <nav class="workflow-nav" aria-label="Conversion tools">
     <a href="#npvtToLinks"><span>01</span> NPVT → Links</a>
@@ -3632,7 +3685,319 @@ function runNativeFormat(mode){
   nativeOutputControls();
 }
 
+
+/* Unified converter registry: content-first detection and only verified targets.
+   A locked envelope is inspectable, not a decrypted proxy configuration. */
+const SMART_TARGETS={
+  links:{label:'Share links (.txt)',ext:'txt'},
+  subscription:{label:'Base64 subscription (.txt)',ext:'txt'},
+  npvt:{label:'NPVT1 (legacy compatible links)',ext:'npvt'},
+  xray:{label:'Xray JSON (.json)',ext:'json'},
+  singbox:{label:'sing-box JSON (.json)',ext:'json'},
+  mihomoYaml:{label:'Mihomo YAML (.yaml)',ext:'yaml'},
+  mihomoJson:{label:'Mihomo JSON (.json)',ext:'json'},
+  wireguard:{label:'WireGuard client INI (.conf)',ext:'conf'},
+  trusttunnel:{label:'TrustTunnel v2 link (.txt)',ext:'txt'},
+  netmod:{label:'Original NetMod JSON (.json)',ext:'json'},
+  json:{label:'Original JSON (.json)',ext:'json'},
+  inspection:{label:'Encrypted-file inspection (.json)',ext:'json'},
+  archive:{label:'Local source bundle (.json)',ext:'json'}
+};
+function smartRecognizeText(text,name='pasted input'){
+  const raw=String(text||'').trim();
+  if(!raw)throw new Error('Empty input');
+  if(raw.length>1048576)throw new Error('Maximum text input is 1 MB');
+  if(/^NPVO1(?:\s|$)/.test(raw)){
+    let obj;
+    try{obj=JSON.parse(raw.replace(/^NPVO1\s*/,'').trim());}
+    catch(_){throw new Error('Invalid open NPVO1 configuration JSON');}
+    if(!obj||!Array.isArray(obj.configs)||!obj.configs.length)throw new Error('NPVO1 has no configs');
+    const links=[];
+    for(const config of obj.configs){
+      const converted=convertJSONToLinks(config,name);
+      if(converted.errors.length)throw new Error(converted.errors.join('; '));
+      if(!converted.links.length)throw new Error('NPVO1 contains a config without verified share-link mapping');
+      links.push(...converted.links.map(x=>x.link));
+    }
+    return {kind:'npvo',label:'NPVO1 unencrypted NPV export',name,text:raw,links};
+  }
+  if(/^NPVT1(?:\s|$)/.test(raw)){
+    const res=processTextContent(raw,name,true);
+    if(!res.links.length)throw new Error(res.errors.join('; ')||'NPVT1 contained no supported share links');
+    return {kind:'npvt',label:'NPVT1 encrypted container',name,links:res.links.map(x=>x.link),text:raw,notes:res.errors};
+  }
+  if(/^tt:\/\/\?/.test(raw)){
+    parseTrustTunnelDeepLink(raw);
+    return {kind:'tt',label:'TrustTunnel v2 deep link',name,text:raw,links:[]};
+  }
+  if(/^\[Interface\]\s*$/mi.test(raw) && /^\[Peer\]\s*$/mi.test(raw)){
+    parseWireGuardIni(raw);
+    return {kind:'wireguard',label:'WireGuard / AmneziaWG INI',name,text:raw,links:[]};
+  }
+  if(/^[\[{]/.test(raw)){
+    let parsed;
+    try{parsed=JSON.parse(raw)}catch(_){parsed=null}
+    if(parsed){
+      const doc=parsed;
+      if(doc && (doc.type==='trusttunnel-deeplink'))return {kind:'tt-json',label:'TrustTunnel deep-link JSON',name,text:raw,links:[]};
+      if(doc && Array.isArray(doc.proxies)){
+        validateMihomoNodes(doc);
+        return {kind:'mihomo',label:'Mihomo / Clash native JSON',name,text:raw,links:[]};
+      }
+      if(doc && Array.isArray(doc.outbounds)){
+        const types=doc.outbounds.filter(x=>x&&x.type).length;
+        return {kind:types?'singbox':'xray',label:types?'sing-box native JSON':'Xray / V2Ray native JSON',name,text:raw,obj:doc,links:[]};
+      }
+      if(Array.isArray(doc)||doc.v2rayProfile||doc.v2rayJson||
+         (doc.server&&doc.serverPort))return {kind:'xray',label:'NPV / V2Ray profile JSON',name,text:raw,obj:doc,links:[]};
+      if(doc.SSH||doc.Proxy||doc.Payload)return {kind:'netmod',label:'NetMod SSH / proxy JSON',name,text:raw,obj:doc,links:[]};
+      return {kind:'json',label:'Generic JSON (no verified proxy mapping)',name,text:raw,obj:doc,links:[]};
+    }
+  }
+  if(/^\s*(?:proxies:|mixed-port:|port:|proxy-groups:)/m.test(raw)){
+    const doc=parseMihomoYaml(raw);
+    validateMihomoNodes(doc);
+    return {kind:'mihomo',label:'Mihomo / Clash YAML',name,text:raw,links:[]};
+  }
+  if(/^(?:nm-v\d+|npvs|ssr|ssd|happ|ehi|hat|dark|masque):\/\//i.test(raw))
+    return {kind:'unsupported',label:'Recognized external format (adapter unavailable)',name,text:raw,links:[]};
+  const links=extractRawLinks(raw);
+  if(links.length){
+    if(links.some(x=>!['vless','vmess','trojan','ss','socks','hy2','hysteria','hysteria2','hysteria2+realm','hysteria2+realm+http','tuic','anytls','tt'].includes(x.split('://')[0].toLowerCase())))
+      throw new Error('Unrecognized share URI requires a dedicated adapter');
+    return {kind:'links',label:links.length+' proxy share link(s)',name,text:raw,links};
+  }
+  const decoded=tryDecodeBase64Text(raw);
+  if(decoded){
+    const subLinks=extractRawLinks(decoded);
+    if(subLinks.length)return {kind:'subscription',label:'Base64 proxy subscription',name,text:raw,links:subLinks};
+  }
+  throw new Error('Unknown configuration format. Paste a full config or choose a supported file.');
+}
+async function smartRecognizeFile(file){
+  if(!file||file.size>1048576)throw new Error('Files must be 1 MB or smaller');
+  const bytes=new Uint8Array(await file.arrayBuffer()),name=file.name||'config';
+  if(bytes.length>=4 && bytes[0]===78&&bytes[1]===80&&bytes[2]===86&&bytes[3]===83){
+    const meta=inspectNpvsV5(bytes);
+    return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · encrypted',name,meta,links:[]};
+  }
+  if(/\.nm$/i.test(name)){
+    const obj=await decryptNetMod(bytes);
+    return {kind:'netmod',label:'NetMod AES-ECB SSH/Proxy JSON',name,text:JSON.stringify(obj,null,2),obj,links:[]};
+  }
+  const text=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
+  if(text.includes('\uFFFD')&&/[\x00-\x08]/.test(text))throw new Error('Unsupported binary format');
+  try{return smartRecognizeText(text,name);}
+  catch(originalError){
+    // NetMod legacy encrypted payloads have no identifying magic; a real
+    // successful authenticated JSON/schema check is stronger than the suffix.
+    if(/^[A-Za-z0-9+/\s]+={0,2}$/.test(text.trim())&&text.length>32){
+      try{
+        const obj=await decryptNetMod(bytes);
+        return {kind:'netmod',label:'NetMod AES-ECB SSH/Proxy JSON',name,
+          text:JSON.stringify(obj,null,2),obj,links:[]};
+      }catch(_){ /* not a legacy NetMod encrypted blob */ }
+    }
+    throw originalError;
+  }
+}
+function smartSourceLinks(source){
+  if(source.links&&source.links.length)return source.links;
+  if(source.kind==='xray'||source.kind==='singbox'){
+    const result=convertJSONToLinks(source.obj,source.name);
+    if(result.errors.length)throw new Error(result.errors.join('; '));
+    if(!result.links.length)throw new Error('No lossless share-URI mapping');
+    return result.links.map(x=>x.link);
+  }
+  throw new Error('Source has no verified share URI mapping');
+}
+function smartNativeMihomo(source){
+  if(source.kind==='tt'||source.kind==='tt-json'){
+    const doc=source.kind==='tt'?parseTrustTunnelDeepLink(source.text):JSON.parse(source.text);
+    return ttToMihomo(doc);
+  }
+  if(source.kind==='mihomo'||source.kind==='wireguard'){
+    const obj=JSON.parse(nativeFormatConvert(source.text,'json'));
+    if(!Array.isArray(obj.proxies))throw new Error('This source cannot be represented as Mihomo nodes');
+    return validateMihomoNodes(obj);
+  }
+  throw new Error('No verified Mihomo mapping for this source');
+}
+function smartSingleCore(source,core){
+  if(source.kind===core){
+    const obj=source.obj||JSON.parse(source.text);
+    if(!obj || !Array.isArray(obj.outbounds))throw new Error('No native outbounds');
+    return obj;
+  }
+  const links=smartSourceLinks(source);
+  if(links.length!==1)throw new Error('Native Core exports require a single supported link');
+  const obj=linkItemToStandaloneJsonObject({link:links[0]});
+  const isSingbox=obj&&obj.outbounds&&obj.outbounds[0]&&obj.outbounds[0].type;
+  if((core==='singbox')!==!!isSingbox)throw new Error('Selected Core cannot represent this protocol natively');
+  return isSingbox?obj:makePasteReadyXrayConfig(obj);
+}
+function smartConvertRecords(records,target){
+  if(!Array.isArray(records)||!records.length)throw new Error('Nothing to convert');
+  if(records.length>80)throw new Error('At most 80 files per batch');
+  if(target==='inspection'){
+    if(records.some(r=>r.kind!=='npvs'))throw new Error('Inspection requires NPVS inputs only');
+    return JSON.stringify(records.map(r=>({filename:r.name,...r.meta})),null,2);
+  }
+  if(target==='archive'){
+    if(records.some(r=>r.kind==='npvs'))throw new Error('Encrypted payload cannot be included in a readable bundle');
+    return JSON.stringify(records.map(r=>({name:r.name,format:r.label,content:r.text})),null,2);
+  }
+  if(target==='links'||target==='subscription'||target==='npvt'){
+    const links=records.flatMap(smartSourceLinks);
+    if(!links.length)throw new Error('No share links available');
+    const unique=[...new Set(links)];
+    if(target==='npvt'){
+      if(!records.every(r=>r.kind==='links'||r.kind==='subscription'))
+        throw new Error('NPVT1 generation from native/older containers would discard metadata');
+      if(!unique.every(isNpvtBuildSupportedLink))throw new Error('Some links cannot be encoded in legacy NPVT1');
+      return buildCompleteNPVTContainer(unique.map(link=>({link})));
+    }
+    const joined=unique.join('\n');
+    return target==='subscription'?base64Utf8(joined):joined;
+  }
+  if(target==='mihomoYaml'||target==='mihomoJson'){
+    const docs=records.map(smartNativeMihomo);
+    const proxies=docs.flatMap(d=>d.proxies);
+    const names=new Set();
+    for(const p of proxies){
+      if(names.has(p.name))throw new Error('Duplicate proxy names in batch; rename before merging');
+      names.add(p.name);
+    }
+    const doc=validateMihomoNodes({proxies});
+    return target==='mihomoJson'?JSON.stringify(doc,null,2):dumpMihomoYaml(doc);
+  }
+  if(records.length!==1)throw new Error('This output requires one source; select a compatible batch format');
+  const source=records[0];
+  if(target==='wireguard'||target==='trusttunnel'){
+    if(!['mihomo','wireguard','tt','tt-json'].includes(source.kind))
+      throw new Error('No native mapping for this output');
+    return nativeFormatConvert(source.text,target==='wireguard'?'ini':'tt');
+  }
+  if(target==='netmod'){
+    if(source.kind!=='netmod')throw new Error('Not a NetMod profile');
+    return JSON.stringify(source.obj,null,2);
+  }
+  if(target==='json'){
+    if(!['json','xray','singbox','mihomo','netmod','tt-json'].includes(source.kind))
+      throw new Error('Not a JSON source');
+    return JSON.stringify(JSON.parse(source.text),null,2);
+  }
+  if(target==='xray'||target==='singbox')return JSON.stringify(smartSingleCore(source,target),null,2);
+  throw new Error('Unknown output target');
+}
+function smartAvailable(records){
+  const options={};
+  if(!records.length)return options;
+  const candidate=['links','subscription','npvt','xray','singbox','mihomoYaml','mihomoJson','wireguard','trusttunnel','netmod','json','inspection','archive'];
+  for(const name of candidate){
+    if(name==='archive'&&records.length===1)continue;
+    try{
+      const output=smartConvertRecords(records,name);
+      if(output&&String(output).length<=2200000)options[name]=output;
+    }catch(_){ /* unavailable format must never appear in the output dropdown */ }
+  }
+  return options;
+}
+
 document.addEventListener('dragover',e=>e.preventDefault());
+const smartState={records:[],outputs:{}};
+function smartRender(){
+  const detected=$('smartDetected'),status=$('smartStatus'),select=$('smartTarget');
+  const outputs=smartState.outputs,previous=select.value;
+  const formats=Object.keys(outputs);
+  select.replaceChildren();
+  if(!formats.length){
+    select.add(new Option('No compatible conversion detected',''));
+    select.disabled=true;
+    $('smartOutput').value='';
+    $('smartCopy').disabled=$('smartDownload').disabled=true;
+  }else{
+    for(const key of formats)select.add(new Option(SMART_TARGETS[key].label,key));
+    select.disabled=false;
+    select.value=formats.includes(previous)?previous:formats[0];
+    smartChooseTarget();
+  }
+  detected.textContent=smartState.records.length
+    ?smartState.records.map((r,i)=>(i+1)+'. '+r.name+': '+r.label).join('\n')
+    :'No input yet';
+  status.textContent=smartState.records.length
+    ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
+      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')
+    :'Ready. Files are processed entirely in this browser.';
+}
+function smartChooseTarget(){
+  const target=$('smartTarget').value;
+  const data=smartState.outputs[target]||'';
+  $('smartOutput').value=data;
+  $('smartCopy').disabled=$('smartDownload').disabled=!data;
+}
+function smartCommit(records){
+  smartState.records=records;
+  smartState.outputs=smartAvailable(records);
+  smartRender();
+}
+let smartDebounce;
+$('smartInput').addEventListener('input',()=>{
+  clearTimeout(smartDebounce);
+  smartDebounce=setTimeout(()=>{
+    $('smartFiles').value='';
+    const value=$('smartInput').value.trim();
+    if(!value){smartCommit([]);return;}
+    try{smartCommit([smartRecognizeText(value)]);}
+    catch(e){smartCommit([]);$('smartStatus').textContent='Input not recognized: '+(e.message||e);}
+  },220);
+});
+async function smartImportFiles(files){
+  if(!files||!files.length)return;
+  if(files.length>80){$('smartStatus').textContent='Maximum 80 files per batch.';return;}
+  $('smartInput').value='';
+  $('smartStatus').textContent='Inspecting files locally…';
+  const records=[],issues=[];
+  for(const file of files){
+    try{records.push(await smartRecognizeFile(file));}
+    catch(e){issues.push(file.name+': '+(e.message||e));}
+  }
+  smartCommit(records);
+  if(issues.length){
+    $('smartStatus').textContent+='\n'+issues.length+' source(s) rejected:\n'+issues.slice(0,8).join('\n');
+  }
+}
+$('smartFiles').addEventListener('change',e=>smartImportFiles(Array.from(e.target.files||[])));
+$('smartDrop').addEventListener('click',()=>$('smartFiles').click());
+$('smartDrop').addEventListener('keydown',e=>{
+  if(e.key==='Enter'||e.key===' '){e.preventDefault();$('smartFiles').click();}
+});
+$('smartDrop').addEventListener('dragover',e=>{e.preventDefault();$('smartDrop').classList.add('over');});
+$('smartDrop').addEventListener('dragleave',()=>$('smartDrop').classList.remove('over'));
+$('smartDrop').addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();$('smartDrop').classList.remove('over');
+  smartImportFiles(Array.from(e.dataTransfer.files||[]));
+});
+$('smartTarget').addEventListener('change',smartChooseTarget);
+$('smartCopy').addEventListener('click',async()=>{
+  const content=$('smartOutput').value;
+  if(!content)return;
+  try{await copyText(content);$('smartStatus').textContent='Output copied locally.';}
+  catch(_){$('smartStatus').textContent='Clipboard blocked: select the output text manually.';}
+});
+$('smartDownload').addEventListener('click',()=>{
+  const kind=$('smartTarget').value,content=$('smartOutput').value;
+  if(!kind||!content)return;
+  const ext=SMART_TARGETS[kind].ext;
+  downloadText('converted-config.'+ext,content,ext==='json'?'application/json;charset=utf-8':'text/plain;charset=utf-8');
+});
+$('smartReset').addEventListener('click',()=>{
+  clearTimeout(smartDebounce);
+  $('smartFiles').value='';$('smartInput').value='';
+  smartCommit([]);
+});
+smartRender();
+
 $('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
 $('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
 $('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));

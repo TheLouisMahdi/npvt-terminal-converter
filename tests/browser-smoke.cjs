@@ -1,129 +1,100 @@
 'use strict';
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const {pathToFileURL} = require('node:url');
-const {chromium} = require('playwright');
-const nodeCrypto = require('node:crypto');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const crypto=require('node:crypto');
+const {pathToFileURL}=require('node:url');
+const {chromium}=require('playwright');
 
-const root = path.resolve(__dirname, '..');
-const url = pathToFileURL(path.join(root, 'Index.html')).href;
-const capture = path.join(root, 'tests', 'screenshots');
-fs.mkdirSync(capture, {recursive: true});
+const root=path.resolve(__dirname,'..');
+const url=pathToFileURL(path.join(root,'Index.html')).href;
+const images=path.join(root,'tests','screenshots');
+fs.mkdirSync(images,{recursive:true});
+const uuid='f47ac10b-58cc-4372-a567-0e02b2c3d4e5';
+const vless='vless://'+uuid+'@example.org:443?encryption=none&security=tls&type=ws&host=cdn.example.org&path=%2Fws#UI';
+const hy2='hy2://secret@hy2.example:443?sni=hy2.example#HY2';
+const wg='[Interface]\nPrivateKey = eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=\nAddress = 10.3.0.2/32\n\n[Peer]\nPublicKey = Cr8hWlKvtDt7nrvf+f0brNQQzabAqrjfBvas9pmowjo=\nEndpoint = example.org:51820\nAllowedIPs = 0.0.0.0/0';
 
-const vless = 'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@example.org:443?encryption=none&security=tls&type=ws&host=cdn.example.org&path=%2Fws&sni=cdn.example.org#UI-Test';
-const native = JSON.stringify({proxies:[{
-  type:'snell',name:'Snell Test',server:'snell.example.org',port:44046,psk:'secret',version:4
-}]});
-const tt = JSON.stringify({proxies:[{
-  type:'trusttunnel',name:'TrustTunnel',server:'example.org',port:443,
-  username:'demo',password:'test-secret',sni:'front.example.org'
-}]});
-
-async function run() {
-  const browser = await chromium.launch({headless:true, args:['--no-sandbox']});
-  try {
-    for (const viewport of [{width:1440,height:900,label:'desktop'},{width:390,height:844,label:'mobile'}]) {
-      const context = await browser.newContext({viewport: {width:viewport.width,height:viewport.height}, acceptDownloads:true});
-      const page = await context.newPage();
+async function run(){
+  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+  try{
+    for(const dimension of [{width:1440,height:900,label:'desktop'},{width:390,height:844,label:'mobile'}]){
+      const page=await browser.newPage({viewport:{width:dimension.width,height:dimension.height},acceptDownloads:true});
       const errors=[];
-      page.on('pageerror', e=>errors.push(String(e.message||e)));
-      await page.goto(url, {waitUntil:'load'});
-      assert.equal(await page.locator('nav.workflow-nav a').count(),6,'all six workflow links are visible');
-      assert.equal(await page.locator('#nativeTools').count(),1,'native panel exists');
-      const hrefs=await page.locator('nav.workflow-nav a').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')));
-      for(const href of hrefs)assert.equal(await page.locator(href).count(),1,'navigation target '+href);
-      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
-      assert.ok(overflow<=2, viewport.label+' horizontal overflow: '+overflow);
-      await page.locator('#nativeInput').fill(native);
-      await page.locator('#nativeToYaml').click();
-      assert.match(await page.locator('#nativeOutput').inputValue(),/proxies:/);
-      assert.equal(await page.locator('#nativeDownload').isEnabled(),true);
-      assert.equal(await page.locator('#nativeCopy').isEnabled(),true);
-      await page.locator('#nativeCopy').click();
-      await page.waitForFunction(() => /Output copied\.|Clipboard unavailable/.test(document.getElementById('nativeLog').textContent), null, {timeout:8000});
-      const download=page.waitForEvent('download');
-      await page.locator('#nativeDownload').click();
-      assert.match((await download).suggestedFilename(),/\.yaml$/);
-      await page.locator('#nativeInput').fill(tt);
-      await page.locator('#nativeToTt').click();
-      const deepLink=await page.locator('#nativeOutput').inputValue();
-      assert.match(deepLink,/^tt:\/\/\?/);
-      await page.locator('#nativeInput').fill(deepLink);
-      await page.locator('#nativeToJson').click();
-      assert.match(await page.locator('#nativeOutput').inputValue(),/trusttunnel-deeplink/);
-      await page.locator('#nativeFile').setInputFiles({
-        name:'sample.yaml',mimeType:'text/plain',
-        buffer:Buffer.from('proxies:\n- name: Snell\n  type: snell\n  server: example.org\n  port: 443\n  psk: pass\n')
-      });
-      await page.waitForFunction(() => document.getElementById('nativeInput').value.includes('proxies:'), null, {timeout:10000});
-      await page.locator('#nativeToJson').click();
-      assert.equal(JSON.parse(await page.locator('#nativeOutput').inputValue()).proxies[0].type,'snell');
-      const fake={SSH:[{Host:'ssh.example.org',Port:22,User:'demo',Pass:'test-only'}],Proxy:[],Payload:{Value:'GET / HTTP/1.1'}};
-      const enc=nodeCrypto.createCipheriv('aes-128-ecb',Buffer.from('<n3t5yn4^n3tm0d>'),null);
-      const nmBinary=Buffer.concat([enc.update(JSON.stringify(fake)),enc.final()]);
-      await page.locator('#nativeFile').setInputFiles({
-        name:'synthetic.nm',mimeType:'application/octet-stream',
-        buffer:Buffer.from(nmBinary.toString('base64'))
-      });
-      await page.waitForFunction(() => /NetMod decrypted locally|Import failed/.test(document.getElementById('nativeLog').textContent),null,{timeout:10000});
-      assert.equal(JSON.parse(await page.locator('#nativeOutput').inputValue()).SSH[0].Host,'ssh.example.org');
-      const npvsHeader=Buffer.alloc(169);
-      npvsHeader[0]=1;npvsHeader[50]=1;
-      npvsHeader.writeUInt32BE(600000,53);npvsHeader.writeUInt32BE(16,133);
-      const npvs=Buffer.alloc(9+169+16+32+64);
-      npvs.write('NPVS',0);npvs[4]=5;npvs.writeUInt32BE(169,5);
-      npvsHeader.copy(npvs,9);npvs.writeUInt32BE(32,9+169+12);
-      await page.locator('#nativeFile').setInputFiles({
-        name:'synthetic.npvs',mimeType:'application/octet-stream',buffer:npvs
-      });
-      await page.waitForFunction(() => /NPVS v5 detected|Import failed/.test(document.getElementById('nativeLog').textContent),null,{timeout:10000});
-      assert.match(await page.locator('#nativeLog').innerText(),/creator-passphrase/);
-      assert.equal(await page.locator('#nativeOutput').inputValue(),'');
-
-      await page.locator('#nativeClear').click();
-      assert.equal(await page.locator('#nativeOutput').inputValue(),'');
-      assert.equal(await page.locator('#nativeDownload').isDisabled(),true);
-      await page.locator('#nativeInput').fill('proxies:\n- bad: [invalid, syntax\n');
-      await page.locator('#nativeToYaml').click();
-      assert.equal(await page.locator('#nativeOutput').inputValue(),'');
-      assert.match(await page.locator('#nativeLog').innerText(),/Conversion unavailable/);
-      // End-to-end legacy link to NPVT1 to recovered link in the real page.
-      await page.locator('#reverseInput').fill(vless);
-      await page.locator('#buildReverse').click();
-      const npvt=await page.locator('#reverseOutput').inputValue();
+      page.on('pageerror',e=>errors.push(e.message));
+      await page.goto(url,{waitUntil:'load'});
+      assert.equal(await page.locator('#smartWorkspace').isVisible(),true);
+      assert.equal(await page.locator('.workflow-nav').isVisible(),false);
+      assert.equal(await page.locator('#smartDownload').isDisabled(),true);
+      async function paste(value){
+        await page.locator('#smartInput').fill(value);
+        await page.waitForTimeout(360);
+      }
+      async function waitSource(name){
+        await page.waitForFunction(pattern=>document.getElementById('smartDetected').textContent.includes(pattern),name,{timeout:10000});
+      }
+      async function available(){
+        return page.locator('#smartTarget option').evaluateAll(nodes=>nodes.map(x=>x.value));
+      }
+      await paste(vless);
+      await waitSource('proxy share link');
+      assert.ok((await available()).includes('npvt'));
+      assert.ok((await available()).includes('xray'));
+      assert.ok(!(await available()).includes('singbox'));
+      await page.locator('#smartTarget').selectOption('npvt');
+      const npvt=await page.locator('#smartOutput').inputValue();
       assert.match(npvt,/^NPVT1\s+/);
-      await page.locator('#forwardInput').fill(npvt);
-      await page.locator('#convertForward').click();
-      assert.match(await page.locator('#forwardOutput').inputValue(),/vless:\/\//i);
-      await page.locator('#jsonInput').fill(JSON.stringify({
-        outbounds:[{protocol:'vless',tag:'node',settings:{
-          vnext:[{address:'edge.example.org',port:443,users:[{id:'f47ac10b-58cc-4372-a567-0e02b2c3d4e5',encryption:'none'}]}]},
-          streamSettings:{network:'ws',security:'tls',wsSettings:{path:'/ws'}}}]
-      }));
-      await page.locator('#jsonToLinks').click();
-      assert.match(await page.locator('#jsonOutput').inputValue(),/vless:\/\//);
-      await page.locator('#nativeInput').fill(native);
-      await page.locator('#nativeToYaml').click();
-      await page.waitForFunction(() => !document.getElementById('toast').classList.contains('show'), null, {timeout:5000});
-      await page.evaluate(() => {
-        const nativePanel=document.getElementById('nativeTools');
-        window.scrollTo({top:Math.max(0,nativePanel.getBoundingClientRect().top+window.scrollY-75),behavior:'instant'});
-      });
-      await page.waitForTimeout(100);
-      await page.screenshot({path:path.join(capture,'native-'+viewport.label+'.png'),animations:'disabled'});
-      await page.locator('#nativeClear').click();
-      await page.locator('#clearForward').click();
-      await page.locator('#clearReverse').click();
-      await page.locator('#clearJsonTools').click();
-      await page.evaluate(() => window.scrollTo({top:0,behavior:'instant'}));
-      await page.waitForTimeout(90);
-      await page.screenshot({path:path.join(capture,viewport.label+'.png'),fullPage:true,animations:'disabled'});
-      assert.deepEqual(errors,[],viewport.label+' JavaScript errors');
-      console.log('PASS '+viewport.label+': responsive navigation, native formats, file import, download, TT, NPVT, Xray JSON, error handling');
-      await context.close();
+      await paste(npvt);
+      await waitSource('NPVT1 encrypted container');
+      assert.ok(!(await available()).includes('npvt'));
+      await page.locator('#smartTarget').selectOption('links');
+      assert.match(await page.locator('#smartOutput').inputValue(),/vless:\/\//);
+      await page.locator('#smartFiles').setInputFiles({name:'client.conf',mimeType:'text/plain',buffer:Buffer.from(wg)});
+      await waitSource('WireGuard / AmneziaWG');
+      assert.ok((await available()).includes('mihomoYaml'));
+      assert.ok(!(await available()).includes('xray'));
+      await page.locator('#smartTarget').selectOption('mihomoYaml');
+      assert.match(await page.locator('#smartOutput').inputValue(),/wireguard/);
+      const download=page.waitForEvent('download');
+      await page.locator('#smartDownload').click();
+      assert.match((await download).suggestedFilename(),/\.yaml$/);
+      const fake={SSH:[{Host:'ssh.example.org',Port:22}],Proxy:[],Payload:{Value:'GET /'}};
+      const encrypt=crypto.createCipheriv('aes-128-ecb',Buffer.from('<n3t5yn4^n3tm0d>'),null);
+      const nm=Buffer.concat([encrypt.update(JSON.stringify(fake)),encrypt.final()]).toString('base64');
+      await page.locator('#smartFiles').setInputFiles({name:'example.nm',mimeType:'application/octet-stream',buffer:Buffer.from(nm)});
+      await waitSource('NetMod AES-ECB');
+      assert.ok((await available()).includes('netmod'));
+      assert.equal((await available()).includes('links'),false);
+      await page.locator('#smartTarget').selectOption('netmod');
+      assert.equal(JSON.parse(await page.locator('#smartOutput').inputValue()).SSH[0].Host,'ssh.example.org');
+      const h=Buffer.alloc(169);h[0]=1;h[50]=1;h.writeUInt32BE(600000,53);h.writeUInt32BE(16,133);
+      const binary=Buffer.alloc(9+169+16+32+64);
+      binary.write('NPVS',0);binary[4]=5;binary.writeUInt32BE(169,5);h.copy(binary,9);binary.writeUInt32BE(32,9+169+12);
+      await page.locator('#smartFiles').setInputFiles({name:'encrypted.npvs',mimeType:'application/octet-stream',buffer:binary});
+      await waitSource('NPVS v5');
+      assert.deepEqual(await available(),['inspection']);
+      await page.locator('#smartTarget').selectOption('inspection');
+      const info=JSON.parse(await page.locator('#smartOutput').inputValue());
+      assert.equal(info[0].unlock,'creator-passphrase');
+      await page.locator('#smartFiles').setInputFiles([
+        {name:'one.txt',mimeType:'text/plain',buffer:Buffer.from(vless)},
+        {name:'two.txt',mimeType:'text/plain',buffer:Buffer.from(hy2)}
+      ]);
+      await page.waitForFunction(()=>document.getElementById('smartDetected').textContent.includes('2. '),null,{timeout:10000});
+      assert.ok((await available()).includes('subscription'));
+      assert.ok(!(await available()).includes('npvt'));
+      await page.locator('#smartTarget').selectOption('links');
+      assert.match(await page.locator('#smartOutput').inputValue(),/hy2:\/\//);
+      await page.locator('#smartReset').click();
+      assert.equal(await page.locator('#smartTarget').isDisabled(),true);
+      assert.equal(await page.locator('#smartOutput').inputValue(),'');
+      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
+      assert.ok(overflow<=2,dimension.label+' horizontal overflow '+overflow);
+      await page.screenshot({path:path.join(images,'unified-'+dimension.label+'.png'),fullPage:true,animations:'disabled'});
+      assert.deepEqual(errors,[],dimension.label+' page errors');
+      console.log('PASS '+dimension.label+': smart detection, dynamic formats, encrypted headers, NPVT, NetMod, batch, responsive UI');
+      await page.close();
     }
-  } finally {await browser.close();}
+  }finally{await browser.close();}
 }
-
-run().catch(error=>{console.error(error);process.exitCode=1;});
+run().catch(e=>{console.error(e);process.exitCode=1;});

@@ -48,6 +48,20 @@ The current engine is based on real NPVT1 exports and expanded with a bidirectio
 ---
 
 
+## Smart auto-detection: one input, compatible outputs
+
+The web UI now has **one visible import area** and **one export area**, replacing the separate NPVT, JSON, links and native-format panels. Paste content or select/drop multiple files; detection uses **file contents**, not just extensions. The output dropdown automatically shows only formats that the current inputs can actually produce without failing a verified mapping.
+
+Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v5 encrypted files are recognized, but without their real secret only safe header inspection is possible.
+
+**Usage:** open `Index.html`, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
+
+The exact [input/output compatibility matrix](docs/SMART_FORMAT_MATRIX.md) distinguishes supported conversions, restricted native mappings, unsupported proprietary inputs, and cryptographically locked containers. It also documents relevant projects, such as Sub-Store and subconverter-rs, without importing their code or dependencies.
+
+The older conversion engines are still included internally for backwards compatibility and regression tests; the public interface exposes the single unified workflow.
+
+---
+
 ## What's new in the 2026 converter
 
 The original NPVT1 and V2Ray converter has been expanded with protocol adapters, native formats, core validation and a mobile-friendly workspace. All conversion still happens locally in one HTML file.
