@@ -3801,8 +3801,98 @@ async function smartRecognizeFile(file){
     throw originalError;
   }
 }
+
+/* Verified *basic subset* of Mihomo ↔ URI mappings. Unknown fields fail closed. */
+function smartMihomoLinkFromNode(p){
+  if(!p||!['vless','vmess','trojan','ss'].includes(p.type))throw new Error('No Mihomo share URI mapping for '+(p&&p.type));
+  const allowed=new Set(['type','name','server','port','uuid','password','cipher','alterId',
+    'tls','servername','network','ws-opts','alpn','client-fingerprint','skip-cert-verify','flow']);
+  for(const k of Object.keys(p))if(!allowed.has(k))throw new Error('Mihomo option '+k+' requires native YAML');
+  const mode=p.network||'tcp';
+  if(!['tcp','ws'].includes(mode))throw new Error('Unsupported Mihomo share transport '+mode);
+  if(p.type==='ss'){
+    if(p.network||p.tls||p['ws-opts']||p.alpn||p.flow)throw new Error('Shadowsocks native-only transport options');
+    if(!p.cipher||!p.password)throw new Error('Shadowsocks method/password required');
+    return profileToLink({protocol:'ss',name:p.name,server:p.server,serverPort:p.port,
+      method:p.cipher,password:p.password});
+  }
+  if(!['vless','vmess','trojan'].includes(p.type))throw new Error('Unsupported Mihomo share type');
+  if(p.type==='vless'&&!p.uuid||p.type==='vmess'&&!p.uuid||p.type==='trojan'&&!p.password)
+    throw new Error('Missing Mihomo UUID or password');
+  if(p.flow&&p.type!=='vless')throw new Error('Flow only applies to VLESS');
+  if(p['ws-opts']&&mode!=='ws')throw new Error('ws-opts requires WebSocket');
+  let path='',host='';
+  if(p['ws-opts']){
+    const opts=p['ws-opts'];
+    if(!opts||typeof opts!=='object'||Array.isArray(opts)||Object.keys(opts).some(k=>!['path','headers'].includes(k)))
+      throw new Error('Advanced WebSocket options require native Mihomo YAML');
+    path=opts.path||'';
+    if(opts.headers){
+      if(!opts.headers||Object.keys(opts.headers).some(k=>k!=='Host'))
+        throw new Error('Additional WebSocket headers require native YAML');
+      host=opts.headers.Host||'';
+    }
+  }
+  if(p.alpn&&(!Array.isArray(p.alpn)||p.alpn.some(x=>typeof x!=='string')))
+    throw new Error('Invalid Mihomo ALPN options');
+  const parsed={
+    protocol:p.type,name:p.name,server:p.server,serverPort:p.port,
+    password:p.uuid||p.password,method:p.type==='vmess'?(p.cipher||'auto'):'none',
+    alterId:p.alterId||0,network:mode,security:p.tls?'tls':'none',
+    sni:p.servername||'',host,path,alpn:p.alpn?p.alpn.join(','):'',
+    fingerPrint:p['client-fingerprint']||'',insecure:!!p['skip-cert-verify'],flow:p.flow||''
+  };
+  return profileToLink(parsed);
+}
+function smartMihomoNodeFromLink(link){
+  const proto=String(link).split('://')[0].toLowerCase();
+  if(!['vless','vmess','trojan','ss'].includes(proto))throw new Error('No basic Mihomo mapping for '+proto);
+  if(proto==='ss'&&/[?&]plugin=/.test(link.split('#')[0]))
+    throw new Error('Shadowsocks plugins need explicit native fields');
+  if(proto==='vmess'){
+    const raw=JSON.parse(bytesToText(b64ToBytes(link.slice(8))));
+    const allowed=new Set(['v','ps','add','port','id','aid','scy','net','type','host','path','tls','sni','fp','alpn']);
+    for(const key of Object.keys(raw))if(!allowed.has(key))throw new Error('Unmappable VMess field '+key);
+    if(raw.type&&raw.type!=='none')throw new Error('Nonstandard VMess headers need native JSON');
+  }else if(proto!=='ss'){
+    const u=new URL(link);
+    const allowed=new Set(['encryption','type','security','sni','host','path','flow','alpn','fp','allowInsecure']);
+    for(const k of u.searchParams.keys())if(!allowed.has(k))throw new Error('Unmappable URI option '+k);
+    if(proto==='vless'&&u.searchParams.get('encryption')&&u.searchParams.get('encryption')!=='none')
+      throw new Error('VLESS PQ encryption must retain a native Core configuration');
+  }
+  const p=linkToNpvParsedProfile(link);
+  const mode=p.network||'tcp';
+  if(!['tcp','ws'].includes(mode))throw new Error('Only basic TCP and WebSocket mappings are verified');
+  if(p.security&&!['none','tls'].includes(p.security))throw new Error('Unsupported Mihomo TLS mode');
+  const node={type:proto,name:p.name||proto.toUpperCase(),
+    server:p.server,port:Number(p.serverPort)};
+  if(proto==='ss'){
+    node.cipher=p.method;node.password=p.password;
+    return validateMihomoNodes({proxies:[node]}).proxies[0];
+  }
+  if(proto==='vless'||proto==='vmess')node.uuid=p.password;
+  else node.password=p.password;
+  if(proto==='vmess'){node.alterId=Number(p.alterId||0);node.cipher=p.method||'auto';}
+  if(p.security==='tls')node.tls=true;
+  if(p.sni)node.servername=p.sni;
+  if(p.alpn)node.alpn=String(p.alpn).split(',').filter(Boolean);
+  if(p.fingerPrint)node['client-fingerprint']=p.fingerPrint;
+  if(p.insecure)node['skip-cert-verify']=true;
+  if(p.flow)node.flow=p.flow;
+  if(mode==='ws'){
+    node.network='ws';
+    const opts={};
+    if(p.path)opts.path=p.path;
+    if(p.host)opts.headers={Host:p.host};
+    if(Object.keys(opts).length)node['ws-opts']=opts;
+  }
+  return validateMihomoNodes({proxies:[node]}).proxies[0];
+}
+
 function smartSourceLinks(source){
   if(source.links&&source.links.length)return source.links;
+  if(source.kind==='mihomo')return smartNativeMihomo(source).proxies.map(smartMihomoLinkFromNode);
   if(source.kind==='xray'||source.kind==='singbox'){
     const result=convertJSONToLinks(source.obj,source.name);
     if(result.errors.length)throw new Error(result.errors.join('; '));
@@ -3812,6 +3902,10 @@ function smartSourceLinks(source){
   throw new Error('Source has no verified share URI mapping');
 }
 function smartNativeMihomo(source){
+  if(source.kind==='links'||source.kind==='subscription'){
+    const proxies=smartSourceLinks(source).map(smartMihomoNodeFromLink);
+    return validateMihomoNodes({proxies});
+  }
   if(source.kind==='tt'||source.kind==='tt-json'){
     const doc=source.kind==='tt'?parseTrustTunnelDeepLink(source.text):JSON.parse(source.text);
     return ttToMihomo(doc);
