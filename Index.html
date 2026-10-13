@@ -806,6 +806,7 @@ function parseLooseShareUri(link){
   if (qIdx >= 0) { query = rest.slice(qIdx + 1); rest = rest.slice(0, qIdx); }
   let authority = rest;
   const slashIdx = authority.indexOf('/');
+  const path = slashIdx >= 0 ? authority.slice(slashIdx + 1) : '';
   if (slashIdx >= 0) authority = authority.slice(0, slashIdx);
   let userinfo = '';
   let hostport = authority;
@@ -824,7 +825,7 @@ function parseLooseShareUri(link){
     const colon = hostport.indexOf(':');
     if (colon >= 0) { host = hostport.slice(0, colon); portSpec = hostport.slice(colon + 1); }
   }
-  return {scheme, userinfo, host, portSpec, query: new URLSearchParams(query), hash};
+  return {scheme, userinfo, host, portSpec, path, query: new URLSearchParams(query), hash};
 }
 function boolFromParams(q, names, def=false){
   for (const name of names) {
@@ -839,45 +840,85 @@ function qFirst(q, names, fallback=''){
   }
   return fallback;
 }
+function hysteria2PortSegments(spec, toSingBox=false){
+  const parts = String(spec || '443').split(',');
+  if (!parts.length || parts.some(p => !p.trim())) throw new Error('invalid Hysteria2 port list');
+  return parts.map(part => {
+    const m = part.trim().match(/^(\\d+)(?:[:-](\\d+))?$/);
+    if (!m) throw new Error('invalid Hysteria2 port range');
+    const start = Number(m[1]), end = m[2] ? Number(m[2]) : start;
+    if (start < 1 || end > 65535 || start > end) throw new Error('invalid Hysteria2 port range');
+    return m[2] ? `${start}${toSingBox ? ':' : '-'}${end}` : String(start);
+  });
+}
+
 function parseHysteria2Share(link){
   const u = parseLooseShareUri(link);
   const name = cleanRemarkName(u.hash, 'Hysteria2');
-  const isRealm = String(u.scheme || '').toLowerCase().startsWith('hysteria2+realm');
-  const auth = isRealm ? qFirst(u.query, ['auth', 'password']) : safeDecodeURIComponent(u.userinfo || '');
-  const outbound = {
-    type: isRealm ? 'hysteria2+realm' : 'hysteria2',
-    tag: 'proxy',
-    server: u.host,
-    password: auth,
-    tls: {enabled: true}
-  };
-  const portSpec = String(u.portSpec || '').trim();
-  if (portSpec) {
-    if (/[,-]/.test(portSpec)) outbound.server_ports = portSpec.split(',').map(x => x.trim()).filter(Boolean);
-    else outbound.server_port = numberPort(portSpec);
+  const isRealm = u.scheme === 'hysteria2+realm' || u.scheme === 'hysteria2+realm+http';
+  if (!['hy2','hysteria2','hysteria2+realm','hysteria2+realm+http'].includes(u.scheme) || !u.host) {
+    throw new Error('invalid Hysteria2 URI');
+  }
+  const queryKeys = new Set(['obfs','obfs-password','sni','insecure','pinSHA256','ech','auth','stun','lport','alpn','network','upmbps','downmbps']);
+  for (const key of u.query.keys()) {
+    if (!queryKeys.has(key)) throw new Error(`unsupported Hysteria2 URI parameter: ${key}`);
+  }
+  // Hysteria uses base64 ECH config lists and certificate fingerprints, whereas
+  // sing-box expects PEM ECH configuration and different certificate pin fields.
+  // Do not silently produce an invalid or weakened native config.
+  if (u.query.has('ech') || u.query.has('pinSHA256')) {
+    throw new Error('ECH/pinSHA256 requires a verified native mapping; keep the original Hysteria2 URI');
+  }
+  if (!isRealm && (u.query.has('stun') || u.query.has('auth') || u.query.has('lport'))) {
+    throw new Error('Realm-only options are not valid in a normal Hysteria2 URI');
+  }
+  if (isRealm && u.query.has('lport')) {
+    throw new Error('Realm lport has no verified sing-box outbound mapping; retain original URI');
+  }
+  const password = isRealm ? u.query.get('auth') : decodeURIComponent(u.userinfo || '');
+  if (!password) throw new Error('Hysteria2 URI missing authentication password');
+  const outbound = {type: 'hysteria2', tag: 'proxy', password, tls: {enabled: true}};
+  if (isRealm) {
+    const realmId = decodeURIComponent(u.path || '');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(realmId) || !u.userinfo) {
+      throw new Error('invalid Hysteria2 Realm token or realm ID');
+    }
+    if (u.portSpec) hysteria2PortSegments(u.portSpec);
+    const stun = u.query.getAll('stun');
+    if (!stun.length || stun.some(x => !x)) {
+      throw new Error('sing-box Realm export requires explicit stun servers; keep the original URI');
+    }
+    outbound.realm = {
+      server_url: `${u.scheme.endsWith('+http') ? 'http' : 'https'}://${formatUriHost(u.host)}${u.portSpec ? ':' + u.portSpec : ''}`,
+      token: decodeURIComponent(u.userinfo),
+      realm_id: realmId,
+      stun_servers: stun
+    };
   } else {
-    outbound.server_port = 443;
+    const ports = hysteria2PortSegments(u.portSpec || '443', true);
+    if (ports.length === 1 && !ports[0].includes(':')) outbound.server_port = Number(ports[0]);
+    else outbound.server_ports = ports;
+    outbound.server = u.host;
   }
-  const obfs = qFirst(u.query, ['obfs', 'obfs_type', 'obfsType']);
-  const obfsPass = qFirst(u.query, ['obfs-password', 'obfs_password', 'obfsPassword']);
-  if (obfs) outbound.obfs = {type: obfs};
-  if (obfsPass) {
-    if (!outbound.obfs) outbound.obfs = {type: 'salamander'};
-    outbound.obfs.password = obfsPass;
+  const obfsType = u.query.get('obfs') || '';
+  const obfsPassword = u.query.get('obfs-password') || '';
+  if (obfsType && !['salamander','gecko'].includes(obfsType)) throw new Error('unsupported Hysteria2 obfs');
+  if (obfsPassword && !obfsType) throw new Error('Hysteria2 obfs-password requires obfs type');
+  if (obfsType) outbound.obfs = {type: obfsType, password: obfsPassword};
+  if (u.query.has('sni')) outbound.tls.server_name = u.query.get('sni');
+  if (u.query.has('insecure')) outbound.tls.insecure = boolFromParams(u.query, ['insecure']);
+  if (u.query.has('alpn')) outbound.tls.alpn = alpnList(u.query.get('alpn'));
+  if (u.query.has('network')) outbound.network = u.query.get('network');
+  for (const [key, field] of [['upmbps','up_mbps'],['downmbps','down_mbps']]) {
+    if (u.query.has(key)) {
+      const n = Number(u.query.get(key));
+      if (!Number.isFinite(n) || n <= 0) throw new Error('invalid Hysteria2 bandwidth');
+      outbound[field] = n;
+    }
   }
-  const sni = qFirst(u.query, ['sni', 'peer', 'serverName', 'server_name']);
-  if (sni) outbound.tls.server_name = sni;
-  if (u.query.has('insecure') || u.query.has('allowInsecure')) outbound.tls.insecure = boolFromParams(u.query, ['insecure','allowInsecure']);
-  const alpn = qFirst(u.query, ['alpn']);
-  if (alpn) outbound.tls.alpn = alpnList(alpn);
-  const network = qFirst(u.query, ['network']);
-  if (network) outbound.network = network;
-  const up = qFirst(u.query, ['upmbps','up_mbps','up']);
-  const down = qFirst(u.query, ['downmbps','down_mbps','down']);
-  if (up) outbound.up_mbps = parseInt(up, 10) || up;
-  if (down) outbound.down_mbps = parseInt(down, 10) || down;
-  return {name, protocol:'hysteria2', outbound};
+  return {name, protocol: 'hysteria2', outbound};
 }
+
 function parseTuicShare(link){
   const u = parseLooseShareUri(link);
   const auth = safeDecodeURIComponent(u.userinfo || '');
@@ -1468,22 +1509,10 @@ function outboundToProfiles(outbound, inheritedName='') {
   }
 
   if (protocol === 'hysteria2' || protocol === 'hy2' || protocol === 'hysteria') {
-    const tls = outbound.tls || outbound.tlsSettings || {};
-    const obfs = outbound.obfs || {};
     profiles.push({
       protocol: 'hysteria2',
-      scheme: protocol === 'hy2' ? 'hy2' : 'hysteria2',
       name: baseName,
-      server: firstValue(outbound.server, outbound.address, outbound.host),
-      serverPort: firstValue(outbound.server_port, outbound.serverPort, outbound.port),
-      server_ports: firstValue(outbound.server_ports, outbound.serverPorts, outbound.ports),
-      password: firstValue(outbound.password, outbound.auth, outbound.token),
-      obfs: firstValue(obfs.type, outbound.obfs_type, outbound.obfsType),
-      obfsPassword: firstValue(obfs.password, outbound.obfs_password, outbound.obfsPassword),
-      sni: firstValue(tls.server_name, tls.serverName, outbound.sni, outbound.peer),
-      insecure: firstValue(tls.insecure, outbound.insecure, outbound.allowInsecure),
-      pinSHA256: firstValue(tls.pinSHA256, tls.pin_sha256, outbound.pinSHA256, outbound.pin_sha256),
-      alpn: firstValue(tls.alpn, outbound.alpn)
+      _sourceOutbound: outbound
     });
   }
   if (protocol === 'anytls') {
@@ -1714,6 +1743,7 @@ function hysteria2ProfileToLink(p, fallbackName=''){
 
 function profileToLink(p, fallbackName='') {
   if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'anytls') return anytlsProfileToLink(p, fallbackName);
+  if (String(p && (p.protocol || p.type) || '').toLowerCase() === 'hysteria2') return hysteria2ProfileToLink(p, fallbackName);
   const n = normalizedProfile(p, fallbackName);
   if (!n.host || !n.port) throw new Error('missing host/port');
   const protocol = detectProtocol(p);
