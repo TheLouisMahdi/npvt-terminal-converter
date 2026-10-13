@@ -1,0 +1,29 @@
+name: Native Xray config validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-xray:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/export_xray_fixture_configs.cjs
+      - name: Check native Xray JSON with Xray-core 26.7.28
+        run: |
+          image="ghcr.io/xtls/xray-core:26.7.28@sha256:d7911c19a283acdc57e171ae0e3bd49ab4c29db14e2ab9274aa97132dd3ca3b9"
+          docker pull "$image"
+          for file in tests/generated-xray/*.json; do
+            echo "Checking $file"
+            docker run --rm --network none -v "$PWD/tests/generated-xray:/checks:ro" "$image" run -test -config "/checks/${file##*/}"
+          done
