@@ -1097,7 +1097,9 @@ function npvEffectiveProtocol(p){
   // can legitimately use a short credential together with a long encryption
   // string such as mlkem768x25519plus... . Those must remain VLESS, otherwise
   // the generated JSON/NPVT loses the VLESS encryption field.
-  if (proto === 'vless' && !isUuidLike(p.password) && !isAdvancedVlessEncryption(p.method)) return 'trojan';
+  // Modern Xray permits custom VLESS IDs shorter than 30 bytes; do not
+  // reinterpret an explicitly labeled VLESS URI as Trojan based on ID shape.
+  if (proto === 'vless' && String(p.configType || '') === '6') return 'trojan';
   if (proto === 'ss') return 'shadowsocks';
   return proto || 'vless';
 }
