@@ -114,3 +114,30 @@ test('Unknown binary or invalid text is rejected without a false format label',(
  assert.throws(()=>call('smartRecognizeText','some random garbage'),/Unknown configuration format/);
  assert.throws(()=>call('smartRecognizeText','{"proxies":[{"type":"unknown"}]}'),/Unsupported or missing Mihomo/);
 });
+
+
+test('NPVO1 open NPV export imports known profile without password',()=>{
+ const open='NPVO1\n'+JSON.stringify({configs:[{v2rayProfile:{
+   configType:5,server:'example.org',serverPort:443,password:uuid,
+   method:'none',network:'tcp',security:'tls',sni:'example.org'
+ }}]});
+ const r=call('smartRecognizeText',open);
+ assert.equal(r.kind,'npvo');
+ const outputs=call('smartAvailable',[r]);
+ assert.ok(outputs.links.includes('vless://'));
+ assert.equal(outputs.npvt,undefined);
+});
+test('NPVO1 malformed or unknown profile fails closed instead of returning empty success',()=>{
+ assert.throws(()=>call('smartRecognizeText','NPVO1\n{"configs":[]}'),/no configs/);
+ assert.throws(()=>call('smartRecognizeText','NPVO1\nnot json'),/Invalid open NPVO1/);
+});
+test('Content-first detection recognizes legacy NetMod AES-ECB even without NM extension',async()=>{
+ const input={SSH:[{Host:'ssh.example.org',Port:22}],Proxy:[],Payload:{Value:'GET /'}};
+ const cipher=crypto.createCipheriv('aes-128-ecb',Buffer.from('<n3t5yn4^n3tm0d>'),null);
+ const contents=Buffer.from(Buffer.concat([cipher.update(JSON.stringify(input)),cipher.final()]).toString('base64'));
+ const file={name:'mystery.txt',size:contents.length,arrayBuffer:async()=>contents.buffer.slice(contents.byteOffset,contents.byteOffset+contents.length)};
+ ctx.__smartFile=file;
+ const result=await vm.runInContext('smartRecognizeFile(__smartFile)',ctx,{timeout:20000});
+ assert.equal(result.kind,'netmod');
+ assert.equal(result.obj.SSH[0].Host,'ssh.example.org');
+});
