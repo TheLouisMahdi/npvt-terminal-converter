@@ -225,3 +225,67 @@ test('Hysteria2 ECH configs reject private key material and unsupported settings
 test('Invalid Hysteria2 ECH length fails closed', () => {
   assert.throws(() => run("parseHysteria2Share('hy2://pass@host:443/?ech=YQ==')"), /ECHConfigList length/);
 });
+
+
+test('VLESS modern direct outbound preserves post-quantum encryption in URI', () => {
+  const encryption = 'mlkem768x25519plus.native.0rtt..X25519Public.MLKEMClient';
+  const cfg = {outbounds:[{
+    protocol:'vless', tag:'pq',
+    settings:{address:'edge.example',port:443,id:'test-user',encryption,flow:'xtls-rprx-vision'},
+    streamSettings:{network:'xhttp',security:'tls',tlsSettings:{serverName:'sni.example'},
+      xhttpSettings:{host:'cdn.example',path:'/data',mode:'stream-up'}}
+  }]};
+  const converted = json(`convertJSONToLinks(${JSON.stringify(cfg)})`);
+  assert.equal(converted.errors.length, 0, converted.errors.join(';'));
+  assert.equal(converted.links.length, 1);
+  const url = new URL(converted.links[0].link);
+  assert.equal(url.searchParams.get('encryption'), encryption);
+  assert.equal(url.searchParams.get('type'), 'xhttp');
+  assert.equal(url.searchParams.get('host'), 'cdn.example');
+  assert.equal(url.searchParams.get('mode'), 'stream-up');
+  assert.equal(url.searchParams.get('path'), '/data');
+  assert.equal(url.searchParams.get('flow'), 'xtls-rprx-vision');
+});
+
+test('VLESS XHTTP URI with xmux and downloadSettings round-trips into Xray JSON', () => {
+  const extra = {xmux:{maxConcurrency:'4-8'}, downloadSettings:{
+    address:'download.example',port:443,network:'xhttp',security:'tls',
+    xhttpSettings:{path:'/down',mode:'packet-up'}}};
+  const link = 'vless://tester@example.org:443?security=tls&type=xhttp&host=front.example&path=%2Fup&mode=packet-up&encryption=none&extra=' +
+    encodeURIComponent(JSON.stringify(extra)) + '#Node';
+  const output = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(link)}})`);
+  const outbound = output.outbounds[0];
+  assert.equal(outbound.settings.vnext[0].users[0].encryption, 'none');
+  assert.equal(outbound.streamSettings.network, 'xhttp');
+  assert.equal(outbound.streamSettings.xhttpSettings.host, 'front.example');
+  assert.equal(outbound.streamSettings.xhttpSettings.path, '/up');
+  assert.equal(outbound.streamSettings.xhttpSettings.mode, 'packet-up');
+  assert.equal(outbound.streamSettings.xhttpSettings.extra.xmux.maxConcurrency, '4-8');
+  assert.equal(outbound.streamSettings.xhttpSettings.extra.downloadSettings.address, 'download.example');
+  const jsonToLinks = json(`convertJSONToLinks(${JSON.stringify(output)})`);
+  assert.equal(jsonToLinks.errors.length, 0, jsonToLinks.errors.join(';'));
+  const uri = new URL(jsonToLinks.links[0].link);
+  assert.deepEqual(JSON.parse(uri.searchParams.get('extra')), extra);
+});
+
+test('Unknown XHTTP fields fail safely and preserve full source JSON', () => {
+  const cfg = {outbounds:[{protocol:'vless',settings:{address:'example.org',port:443,id:'custom',encryption:'none'},
+    streamSettings:{network:'xhttp',xhttpSettings:{path:'/a', mode:'stream-up',unrecognizedKey:true}}}]};
+  const links = json(`convertJSONToLinks(${JSON.stringify(cfg)})`);
+  assert.equal(links.links.length, 0);
+  assert.match(links.errors.join(' '), /Unknown XHTTP settings/);
+  const full = json(`collectFullJsonConfigsFromObject(${JSON.stringify(cfg)})`);
+  assert.equal(full.length, 1);
+  assert.equal(full[0].object.outbounds[0].streamSettings.xhttpSettings.unrecognizedKey, true);
+});
+
+test('NPVT refuses unsupported VLESS XHTTP and post-quantum encryption but accepts legacy', () => {
+  assert.equal(run("isNpvtBuildSupportedLink('vless://tester@example.org:443?type=xhttp&encryption=none')"), false);
+  assert.equal(run("isNpvtBuildSupportedLink('vless://tester@example.org:443?type=tcp&encryption=mlkem768x25519plus.native.0rtt..key')"), false);
+  assert.equal(run("isNpvtBuildSupportedLink('vless://tester@example.org:443?type=ws&encryption=none')"), true);
+});
+
+test('Malformed XHTTP extra JSON and modes are rejected', () => {
+  assert.throws(() => run("parseStandardShare('vless://a@server:443?type=xhttp&extra=%7Bbroken')"), /invalid XHTTP extra/);
+  assert.throws(() => run("parseStandardShare('vless://a@server:443?type=xhttp&mode=bad')"), /invalid XHTTP mode/);
+});
