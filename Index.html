@@ -888,7 +888,7 @@ function hysteria2PortSegments(spec, toSingBox=false){
     if (!m) throw new Error('invalid Hysteria2 port range');
     const start = Number(m[1]), end = m[2] ? Number(m[2]) : start;
     if (start < 1 || end > 65535 || start > end) throw new Error('invalid Hysteria2 port range');
-    return m[2] ? `${start}${toSingBox ? ':' : '-'}${end}` : String(start);
+    return toSingBox ? `${start}:${end}` : (start === end ? String(start) : `${start}-${end}`);
   });
 }
 
@@ -936,7 +936,7 @@ function parseHysteria2Share(link){
     };
   } else {
     const ports = hysteria2PortSegments(u.portSpec || '443', true);
-    if (ports.length === 1 && !ports[0].includes(':')) outbound.server_port = Number(ports[0]);
+    if (ports.length === 1 && /^\d+$/.test(u.portSpec || '443')) outbound.server_port = Number(u.portSpec || 443);
     else outbound.server_ports = ports;
     outbound.server = u.host;
   }
