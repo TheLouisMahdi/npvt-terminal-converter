@@ -415,6 +415,35 @@ td.link-cell{max-width:560px;overflow:hidden;white-space:nowrap;text-overflow:el
       </div>
     </section>
 
+    <section class="panel" id="nativeTools">
+      <h2>05 — Mihomo / Clash YAML and AmneziaWG</h2>
+      <p>Convert native proxy nodes without changing protocols or dropping advanced settings. Supports Snell, TrustTunnel, ShadowQUIC, Mieru and WireGuard / AmneziaWG v3.1. Paste Mihomo YAML/JSON or WireGuard client INI. Unsupported YAML constructs and unmappable fields produce explicit errors.</p>
+      <div class="panes">
+        <div>
+          <label class="input-label" for="nativeInput">Mihomo YAML / JSON / WireGuard INI</label>
+          <textarea id="nativeInput" spellcheck="false" placeholder='proxies:&#10;  - name: "TrustTunnel"&#10;    type: trusttunnel&#10;    server: example.org&#10;    port: 443&#10;    username: user&#10;    password: secret'></textarea>
+        </div>
+        <div>
+          <label class="input-label" for="nativeOutput">Converted native config</label>
+          <textarea id="nativeOutput" spellcheck="false" readonly placeholder="Select an output format. No network requests are made."></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <div class="switch-stack">
+          <small class="hint-line">YAML import accepts plain mappings and sequences; anchors, tags, merge keys, folded scalars and templating need a full YAML parser and are rejected. WireGuard conversion covers supported client fields, including AmneziaWG v3/v3.1 flags. No invented NPVT or share URI is generated.</small>
+        </div>
+        <div class="controls">
+          <button class="btn primary" type="button" id="nativeToYaml">→ Mihomo YAML</button>
+          <button class="btn secondary" type="button" id="nativeToJson">→ Native JSON</button>
+          <button class="btn secondary" type="button" id="nativeToIni">→ WireGuard INI</button>
+          <button class="btn secondary" type="button" id="nativeToTt">→ TT deep link</button>
+          <button class="btn secondary" type="button" id="nativeCopy">Copy</button>
+          <button class="btn bad" type="button" id="nativeClear">Clear</button>
+        </div>
+      </div>
+      <div class="log" id="nativeLog">Ready. Only native config representations are converted here.</div>
+    </section>
+
     </div>
 
     <section class="panel" id="resultsTable">
@@ -1398,7 +1427,7 @@ function extractRawLinks(text) {
   // Important: match only when the scheme starts at a real boundary.
   // Without the boundary, "wss://[host]/" inside Xray WebSocket headers can be
   // misread as a fake "ss://[host]/" Shadowsocks link.
-  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|anytls|wireguard):\/\/[^\s"'<>]+)/gi;
+  const re = /(^|[^A-Za-z0-9+.-])((?:vless|vmess|trojan|ss|ssr|socks|hysteria2\+realm\+http|hysteria2\+realm|hysteria2?|hy2|tuic|anytls|tt|wireguard):\/\/[^\s"'<>]+)/gi;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const link = cleanExtractedUri(m[2]);
@@ -2440,6 +2469,7 @@ function linkItemToStandaloneJsonObject(item, index=0){
   const proto = String(link.split('://')[0] || '').toLowerCase();
   if (['hysteria2','hy2','hysteria','hysteria2+realm','hysteria2+realm+http','tuic','anytls'].includes(proto)) return linkItemToSingBoxJsonObject(item, index);
   if (proto === 'ss' && /[?&]plugin=/.test(link.split('#')[0])) return shadowsocksPluginToSingBox(link, index);
+  if (proto === 'tt') return ttToMihomo(parseTrustTunnelDeepLink(link));
   const parsed = linkToNpvParsedProfile(link);
   const name = cleanRemarkName(displayNameFromLink(link) || parsed.name || (item && item.name) || `Config ${index + 1}`, `Config ${index + 1}`);
   parsed.name = name;
@@ -3046,7 +3076,457 @@ function wireDrop(zoneId, fileId, handler){
   input.addEventListener('click',e=>e.stopPropagation());
   input.addEventListener('change',e=>handler([...e.target.files]));
 }
+
+/* Offline native-format adapters: restricted YAML mappings and AWG/WireGuard INI.
+   Unsupported YAML features fail closed; nothing is fetched or evaluated. */
+function nativeYamlScalar(raw){
+  const v = String(raw).trim();
+  if (!v) return '';
+  if (v[0] === '"' ) { try { return JSON.parse(v); } catch (_) { throw new Error('Invalid YAML quoted scalar'); } }
+  if (v[0] === "'") {
+    if (!v.endsWith("'")) throw new Error('Unterminated YAML single quote');
+    return v.slice(1,-1).replace(/''/g,"'");
+  }
+  if (/^[!&*]/.test(v) || /^[>|]/.test(v)) throw new Error('YAML tags, anchors and block scalars require a full YAML parser');
+  if (v[0] === '[' && v.endsWith(']')) {
+    const body = v.slice(1,-1).trim();
+    return body ? nativeYamlSplit(body).map(nativeYamlScalar) : [];
+  }
+  if (v[0] === '{' && v.endsWith('}')) {
+    const body=v.slice(1,-1).trim(), result={};
+    if (body) for(const entry of nativeYamlSplit(body)){
+      const m=entry.match(/^([^:]+):\s*(.*)$/);
+      if (!m) throw new Error('Invalid YAML inline object');
+      const key=String(nativeYamlScalar(m[1]));
+      if (Object.prototype.hasOwnProperty.call(result,key) || ['__proto__','constructor','prototype'].includes(key)) throw new Error('Unsafe or duplicate YAML key');
+      result[key]=nativeYamlScalar(m[2]);
+    }
+    return result;
+  }
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (v === 'null' || v === '~') return null;
+  if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(v) && Number.isFinite(Number(v))) return Number(v);
+  return v;
+}
+function nativeYamlSplit(input){
+  const out=[]; let start=0, quote='', depth=0;
+  for(let i=0;i<input.length;i++){
+    const ch=input[i];
+    if (quote) {
+      if (quote==='"' && ch==='\\') {i++; continue;}
+      if(ch===quote){if(quote==="'" && input[i+1]==="'"){i++;continue;} quote='';}
+      continue;
+    }
+    if(ch==='"'||ch==="'"){quote=ch;continue;}
+    if(ch==='['||ch==='{')depth++;
+    else if(ch===']'||ch==='}')depth--;
+    else if(ch===',' && depth===0){out.push(input.slice(start,i).trim());start=i+1;}
+    if(depth<0)throw new Error('Malformed YAML inline syntax');
+  }
+  if(quote||depth!==0)throw new Error('Unbalanced YAML quotes or inline collection');
+  out.push(input.slice(start).trim());
+  return out;
+}
+function nativeYamlStripComment(line){
+  let quote='';
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(quote){
+      if(quote==='"'&&ch==='\\'){i++;continue;}
+      if(ch===quote){if(ch==="'"&&line[i+1]==="'"){i++;continue;}quote='';}
+    }else if(ch==='"'||ch==="'")quote=ch;
+    else if(ch==='#'&&(i===0||/\s/.test(line[i-1])))return line.slice(0,i).trimEnd();
+  }
+  return line.trimEnd();
+}
+function parseMihomoYaml(input){
+  const text=String(input||'');
+  if(text.length>1000000)throw new Error('YAML exceeds 1 MB input limit');
+  if(/^\s*[\[{]/.test(text)) {try{return JSON.parse(text);}catch (_) {}}
+  const tokens=[];
+  for(const [n,line] of text.replace(/^\uFEFF/,'').split(/\r?\n/).entries()){
+    if(/\t/.test(line.slice(0,line.search(/\S|$/)))) throw new Error('YAML indentation cannot contain tabs');
+    const body=nativeYamlStripComment(line);
+    if(!body.trim()||body.trim()==='---'||body.trim()==='...')continue;
+    if(/^\s*(?:%|!|&|\*)/.test(body))throw new Error('Unsupported YAML directive, tag or alias at line '+(n+1));
+    const indent=body.length-body.trimStart().length;
+    tokens.push({indent,body:body.trim(),line:n+1});
+  }
+  if(!tokens.length)throw new Error('Empty YAML');
+  let pos=0;
+  function parseBlock(indent){
+    if(pos>=tokens.length || tokens[pos].indent!==indent)throw new Error('Unexpected YAML indentation');
+    const isList=/^-(?:\s|$)/.test(tokens[pos].body);
+    const out=isList?[]:{};
+    while(pos<tokens.length&&tokens[pos].indent===indent){
+      if(isList&&!/^-(?:\s|$)/.test(tokens[pos].body))break;
+      const t=tokens[pos++];
+      if(isList){
+        if(!/^-(?:\s|$)/.test(t.body))throw new Error('Mixed YAML array/map at '+t.line);
+        const body=t.body.slice(1).trim();
+        if(!body){
+          if(pos>=tokens.length||tokens[pos].indent<=indent)throw new Error('Missing YAML list entry');
+          out.push(parseBlock(tokens[pos].indent));
+        }else if(/^[^:]+:\s*(?:.*)$/.test(body)){
+          tokens.splice(pos,0,{indent:indent+2,body,line:t.line});
+          out.push(parseBlock(indent+2));
+        }else{
+          out.push(nativeYamlScalar(body));
+          if(pos<tokens.length&&tokens[pos].indent>indent)throw new Error('Unexpected nested YAML scalar at '+t.line);
+        }
+      } else {
+        const m=t.body.match(/^([^:]+):(?:\s+(.*))?$/);
+        if(!m)throw new Error('Expected YAML mapping at line '+t.line);
+        const key=String(nativeYamlScalar(m[1]));
+        if(!key||['__proto__','constructor','prototype'].includes(key)||Object.prototype.hasOwnProperty.call(out,key))throw new Error('Duplicate or unsafe YAML key '+key);
+        if(m[2]!==undefined)out[key]=nativeYamlScalar(m[2]);
+        else if(pos<tokens.length && (tokens[pos].indent>indent || (tokens[pos].indent===indent && /^-(?:\s|$)/.test(tokens[pos].body)))) out[key]=parseBlock(tokens[pos].indent);
+        else out[key]=null;
+      }
+    }
+    if(pos<tokens.length&&tokens[pos].indent>indent)throw new Error('Unexpected YAML indentation at '+tokens[pos].line);
+    return out;
+  }
+  const out=parseBlock(tokens[0].indent);
+  if(pos!==tokens.length)throw new Error('Unsupported YAML document structure at '+tokens[pos].line);
+  return out;
+}
+function dumpMihomoYaml(value){
+  function scalar(x){
+    if(x===null)return 'null';
+    if(typeof x==='boolean'||typeof x==='number')return JSON.stringify(x);
+    if(typeof x==='string')return JSON.stringify(x);
+    throw new Error('Unsupported YAML scalar');
+  }
+  function emit(x,depth){
+    const p=' '.repeat(depth),out=[];
+    if(Array.isArray(x)){
+      for(const item of x){
+        if(item!==null&&typeof item==='object'){out.push(p+'-');out.push(emit(item,depth+2));}
+        else out.push(p+'- '+scalar(item));
+      }
+    }else if(x!==null&&typeof x==='object'){
+      for(const [key,item] of Object.entries(x)){
+        if(!/^[A-Za-z0-9_-]+$/.test(key)) throw new Error('Unsupported YAML key '+key);
+        if(item!==null&&typeof item==='object'){out.push(p+key+':');out.push(emit(item,depth+2));}
+        else out.push(p+key+': '+scalar(item));
+      }
+    }else throw new Error('Expected native YAML map or list');
+    return out.join('\n');
+  }
+  return emit(value,0)+'\n';
+}
+const NATIVE_MIHOMO_TYPES = ['snell','trusttunnel','shadowquic','mieru','wireguard','ss','vmess','vless','trojan','anytls','hysteria2','tuic','http','socks5'];
+function validateAmneziaOption(option){
+  if(!option)return;
+  if(![1,2,3].includes(Number(option.version)))throw new Error('Unsupported AmneziaWG version');
+  const key=option['header-protection-key'];
+  if(key){
+    if(typeof key!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(key)||b64ToBytes(key).length!==32) {
+      throw new Error('HeaderProtectionKey must be a 32-byte Base64 key');
+    }
+    for(const field of ['s1','s2','s3','s4']){
+      if(!Number.isInteger(Number(option[field]))||Number(option[field])<12) {
+        throw new Error('AmneziaWG HeaderProtectionKey requires S1-S4 >= 12 bytes');
+      }
+    }
+    if(Number(option.version)!==3)throw new Error('HeaderProtectionKey requires AmneziaWG version 3');
+  }
+  if((option['random-trailers']||option['disable-cookies'])&&Number(option.version)!==3) {
+    throw new Error('AmneziaWG 3.1 flags require version 3');
+  }
+}
+function validateMihomoNodes(obj){
+  if(!obj||typeof obj!=='object'||!Array.isArray(obj.proxies))throw new Error('Expected Mihomo {proxies:[...]}');
+  if(!obj.proxies.length)throw new Error('No Mihomo proxy nodes found');
+  const seen=new Set();
+  for(const p of obj.proxies){
+    if(!p||typeof p!=='object'||Array.isArray(p)||!NATIVE_MIHOMO_TYPES.includes(p.type))throw new Error('Unsupported or missing Mihomo node type');
+    if(typeof p.name!=='string'||!p.name.trim()||seen.has(p.name))throw new Error('Duplicate or missing proxy name');
+    seen.add(p.name);
+    if(p.type==='wireguard') {
+      if(!p['private-key']||!p.ip&&!p.ipv6)throw new Error('Incomplete WireGuard interface');
+      validateAmneziaOption(p['amnezia-wg-option']);
+    }else {
+      if(!p.server||!Number.isInteger(Number(p.port))||Number(p.port)<1||Number(p.port)>65535) {
+        if(!(p.type==='mieru'&&p['port-range']&&!p.port))throw new Error('Invalid server/port in '+p.name);
+      }
+    }
+    if(p.type==='snell'&&!p.psk)throw new Error('Snell requires psk');
+    if(['trusttunnel','shadowquic','mieru'].includes(p.type)&&(!p.username||!p.password))throw new Error(p.type+' requires username and password');
+  }
+  return obj;
+}
+const AWG_KEYS = {
+  jc:'Jc', jmin:'Jmin',jmax:'Jmax',s1:'S1',s2:'S2',s3:'S3',s4:'S4',
+  h1:'H1',h2:'H2',h3:'H3',h4:'H4',i1:'I1',i2:'I2',i3:'I3',i4:'I4',i5:'I5',
+  'header-protection-key':'HeaderProtectionKey',
+  'content-padding-addition':'ContentPaddingAddition',
+  'rekey-after-time':'RekeyAfterTime','rekey-timeout':'RekeyTimeout',
+  'reject-after-time':'RejectAfterTime','keepalive-timeout':'KeepaliveTimeout',
+  'max-handshake-attempts':'MaxHandshakeAttempts',
+  'random-trailers':'RandomTrailers','disable-cookies':'DisableCookies'
+};
+function parseWireGuardIni(input){
+  const sections=[];let section=null;
+  for(const [i,raw] of String(input||'').split(/\r?\n/).entries()){
+    const line=raw.trim();
+    if(!line||line.startsWith('#')||line.startsWith(';'))continue;
+    if(/^\[(Interface|Peer)\]$/i.test(line)){section={type:line.slice(1,-1).toLowerCase(),keys:{}};sections.push(section);continue;}
+    if(!section)throw new Error('INI field before a section at line '+(i+1));
+    const m=line.match(/^([A-Za-z][A-Za-z0-9]*)\s*=\s*(.*)$/);
+    if(!m)throw new Error('Invalid WireGuard field at line '+(i+1));
+    const k=m[1].toLowerCase();
+    if(Object.prototype.hasOwnProperty.call(section.keys,k))throw new Error('Duplicate WireGuard key '+m[1]);
+    section.keys[k]=m[2].trim();
+  }
+  const intf=sections.filter(x=>x.type==='interface');
+  const peers=sections.filter(x=>x.type==='peer');
+  if(intf.length!==1||!peers.length)throw new Error('Expected one [Interface] and at least one [Peer]');
+  const iface=intf[0].keys;
+  const ifaceAllowed=new Set(['privatekey','address','mtu','amneziawgversion','version',...Object.values(AWG_KEYS).map(x=>x.toLowerCase())]);
+  const peerAllowed=new Set(['publickey','presharedkey','allowedips','endpoint','persistentkeepalive']);
+  for(const k of Object.keys(iface))if(!ifaceAllowed.has(k))throw new Error('Unsupported Interface field '+k+'; preserve original INI');
+  for(const peer of peers)for(const k of Object.keys(peer.keys))if(!peerAllowed.has(k))throw new Error('Unsupported Peer field '+k+'; preserve original INI');
+  if(!iface.privatekey||!iface.address)throw new Error('WireGuard requires PrivateKey and Address');
+  const addresses=iface.address.split(',').map(x=>x.trim());
+  const ipv4=addresses.find(x=>!x.includes(':')),ipv6=addresses.find(x=>x.includes(':'));
+  if(addresses.length>2||addresses.some(x=>!x)||!ipv4&&!ipv6)throw new Error('Unsupported Interface Address layout');
+  const p={type:'wireguard',name:'WireGuard', 'private-key':iface.privatekey,udp:true};
+  if(ipv4)p.ip=ipv4;
+  if(ipv6)p.ipv6=ipv6;
+  if(iface.mtu){p.mtu=Number(iface.mtu);if(!Number.isInteger(p.mtu)||p.mtu<576||p.mtu>9000)throw new Error('Invalid MTU');}
+  const awg={};
+  for(const [key,label] of Object.entries(AWG_KEYS)){
+    const val=iface[label.toLowerCase()];
+    if(val!==undefined){
+      if(key==='random-trailers'||key==='disable-cookies'){
+        if(!/^(true|false)$/i.test(val))throw new Error('Invalid AmneziaWG boolean '+label);
+        awg[key]=val.toLowerCase()==='true';
+      }else if(/^jc$|^jmin$|^jmax$|^s[1-4]$|^(?:rekey-after-time|rekey-timeout|reject-after-time|keepalive-timeout|max-handshake-attempts)$/.test(key)){
+        awg[key]=Number(val);
+        if(!Number.isFinite(awg[key])||awg[key]<0)throw new Error('Invalid AmneziaWG number '+label);
+      }else awg[key]=val;
+    }
+  }
+  if(Object.keys(awg).length||iface.amneziawgversion||iface.version){
+    const version=Number(iface.amneziawgversion||iface.version||(awg['header-protection-key']!==undefined||awg['random-trailers']!==undefined?3:2));
+    if(![1,2,3].includes(version))throw new Error('Unsupported AWG version');
+    awg.version=version;
+    p['amnezia-wg-option']=awg;
+  }
+  const mapped=peers.map(section=>{
+    const q=section.keys;
+    if(!q.publickey||!q.endpoint)throw new Error('WireGuard peer requires PublicKey and Endpoint');
+    const m=q.endpoint.match(/^(?:\[([^\]]+)\]|([^:]+)):(\d+)$/);
+    if(!m||Number(m[3])<1||Number(m[3])>65535)throw new Error('Invalid WireGuard Endpoint');
+    const out={server:m[1]||m[2],port:Number(m[3]),'public-key':q.publickey};
+    if(q.presharedkey)out['pre-shared-key']=q.presharedkey;
+    if(q.allowedips)out['allowed-ips']=q.allowedips.split(',').map(x=>x.trim());
+    if(q.persistentkeepalive)out['persistent-keepalive']=Number(q.persistentkeepalive);
+    return out;
+  });
+  if(mapped.length===1)Object.assign(p,mapped[0]);
+  else p.peers=mapped;
+  validateAmneziaOption(p['amnezia-wg-option']);
+  return {proxies:[p]};
+}
+function wireGuardToIni(input){
+  const obj=input&&input.proxies?input.proxies[0]:input;
+  if(!obj||obj.type!=='wireguard')throw new Error('Expected WireGuard Mihomo proxy');
+  const allowed=new Set(['type','name','private-key','ip','ipv6','mtu','udp','peers','server','port','public-key','pre-shared-key','allowed-ips','persistent-keepalive','amnezia-wg-option']);
+  for(const key of Object.keys(obj))if(!allowed.has(key))throw new Error('Unmapped WireGuard option '+key+'; use native YAML');
+  if(!obj['private-key'])throw new Error('Missing WireGuard private-key');
+  const lines=['[Interface]','PrivateKey = '+obj['private-key']];
+  const ips=[obj.ip,obj.ipv6].filter(Boolean);
+  if(!ips.length)throw new Error('Missing WireGuard address');
+  lines.push('Address = '+ips.join(', '));
+  if(obj.mtu!==undefined)lines.push('MTU = '+obj.mtu);
+  if(obj['amnezia-wg-option']){
+    const a=obj['amnezia-wg-option'];
+    validateAmneziaOption(a);
+    for(const k of Object.keys(a))if(k!=='version'&&!AWG_KEYS[k])throw new Error('Unknown AmneziaWG option '+k);
+    // AWG protocol version is inferred from supported parameters in real client INI; do not emit a nonstandard key.
+    for(const [key,label] of Object.entries(AWG_KEYS))if(a[key]!==undefined)lines.push(label+' = '+a[key]);
+  }
+  const peers=obj.peers||[obj];
+  for(const p of peers){
+    if(!p.server||!p.port||!p['public-key'])throw new Error('Incomplete WireGuard peer');
+    for(const key of Object.keys(p)){
+      if(p!==obj&&!['server','port','public-key','pre-shared-key','allowed-ips','persistent-keepalive'].includes(key))throw new Error('Unmapped peer field '+key);
+    }
+    lines.push('','[Peer]','PublicKey = '+p['public-key'],
+      'Endpoint = '+(String(p.server).includes(':')?'['+p.server+']':p.server)+':'+p.port);
+    if(p['pre-shared-key'])lines.push('PresharedKey = '+p['pre-shared-key']);
+    if(p['allowed-ips'])lines.push('AllowedIPs = '+p['allowed-ips'].join(', '));
+    if(p['persistent-keepalive']!==undefined)lines.push('PersistentKeepalive = '+p['persistent-keepalive']);
+  }
+  return lines.join('\n')+'\n';
+}
+
+/* TrustTunnel deep-link v2: official QUIC varint TLV specification. */
+function ttVarintRead(bytes,state){
+  if(state.pos>=bytes.length)throw new Error('Truncated TrustTunnel varint');
+  const first=bytes[state.pos++],width=1<<(first>>6);
+  if(state.pos+width-1>bytes.length)throw new Error('Truncated TrustTunnel varint');
+  let value=BigInt(first&63);
+  for(let i=1;i<width;i++)value=(value<<8n)|BigInt(bytes[state.pos++]);
+  if(value>BigInt(Number.MAX_SAFE_INTEGER))throw new Error('TrustTunnel varint exceeds safe integer');
+  return Number(value);
+}
+function ttVarintWrite(v){
+  if(!Number.isSafeInteger(v)||v<0)throw new Error('Invalid TrustTunnel varint');
+  const size=v<64?1:v<16384?2:v<1073741824?4:8;
+  let num=BigInt(v),out=Array(size).fill(0);
+  for(let i=size-1;i>=0;i--){out[i]=Number(num&255n);num>>=8n;}
+  out[0]|=size===1?0:size===2?64:size===4?128:192;
+  return out;
+}
+function ttDecodeString(bytes){return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+function parseTrustTunnelDeepLink(link){
+  const text=String(link||'').trim();
+  if(!/^tt:\/\/\?[A-Za-z0-9_-]{1,16384}$/.test(text))throw new Error('Invalid TrustTunnel tt://? deep link');
+  const data=b64ToBytes(text.slice(6));
+  if(data.length>12288)throw new Error('TrustTunnel payload is too large');
+  const state={pos:0},doc={type:'trusttunnel-deeplink',version:0,addresses:[]},unknown=[];
+  const strings={1:'hostname',3:'custom_sni',5:'username',6:'password',11:'client_random_prefix',12:'name',14:'subscription_url',15:'client_random_auth_key'};
+  const booleans={4:'has_ipv6',7:'skip_verification',10:'anti_dpi'};
+  while(state.pos<data.length){
+    const tag=ttVarintRead(data,state),length=ttVarintRead(data,state);
+    if(length>data.length-state.pos)throw new Error('Invalid TrustTunnel TLV length');
+    const value=data.slice(state.pos,state.pos+length);state.pos+=length;
+    if(tag===0||tag===9){
+      const fieldState={pos:0},n=ttVarintRead(value,fieldState);
+      if(fieldState.pos!==value.length)throw new Error('Malformed TrustTunnel integer');
+      if(tag===0)doc.version=n;
+      else {if(n!==1&&n!==2)throw new Error('Unsupported TrustTunnel upstream protocol');doc.upstream_protocol=n===2?'http3':'http2';}
+    }else if(tag===2)doc.addresses.push(ttDecodeString(value));
+    else if(strings[tag])doc[strings[tag]]=ttDecodeString(value);
+    else if(booleans[tag]){
+      if(length!==1||value[0]>1)throw new Error('Invalid TrustTunnel boolean');
+      doc[booleans[tag]]=!!value[0];
+    }else if(tag===8)doc.certificate_base64=bytesToBase64(value);
+    else if(tag===13){
+      let cursor={pos:0},dns=[];
+      while(cursor.pos<value.length){const len=ttVarintRead(value,cursor);
+        if(len>value.length-cursor.pos)throw new Error('Malformed TrustTunnel DNS array');
+        dns.push(ttDecodeString(value.slice(cursor.pos,cursor.pos+len)));cursor.pos+=len;
+      }
+      doc.dns_upstreams=dns;
+    }else unknown.push({tag,data:bytesToBase64(value)});
+  }
+  if(doc.version>2)throw new Error('Unsupported TrustTunnel deep link version');
+  if(doc.subscription_url&&!doc.subscription_url.startsWith('https://'))throw new Error('TrustTunnel subscription must use HTTPS');
+  if(!doc.subscription_url&&(!doc.hostname||!doc.addresses.length||!doc.username||!doc.password))throw new Error('Incomplete TrustTunnel static credentials');
+  if(unknown.length)doc.unknown_tlvs=unknown;
+  return doc;
+}
+function encodeTrustTunnelDeepLink(doc){
+  if(!doc||doc.type!=='trusttunnel-deeplink')throw new Error('Expected a TrustTunnel deep-link object');
+  const allowed=new Set(['type','version','hostname','addresses','custom_sni','has_ipv6','username','password','skip_verification','certificate_base64','upstream_protocol','anti_dpi','client_random_prefix','name','dns_upstreams','subscription_url','client_random_auth_key','unknown_tlvs']);
+  for(const key of Object.keys(doc))if(!allowed.has(key))throw new Error('Unknown TrustTunnel field '+key);
+  if(doc.subscription_url&&!String(doc.subscription_url).startsWith('https://'))throw new Error('TrustTunnel subscription must use HTTPS');
+  if(!doc.subscription_url&&(!doc.hostname||!Array.isArray(doc.addresses)||!doc.addresses.length||!doc.username||!doc.password))throw new Error('Incomplete TrustTunnel credentials');
+  const chunks=[];
+  function add(tag,bytes){const values=Array.from(bytes);chunks.push(...ttVarintWrite(tag),...ttVarintWrite(values.length),...values);}
+  function str(tag,value){if(value!==undefined&&value!==null&&value!=='')add(tag,textToBytes(String(value)));}
+  function bool(tag,value){if(value!==undefined)add(tag,[value?1:0]);}
+  add(0,ttVarintWrite(2));
+  str(1,doc.hostname);
+  for(const address of doc.addresses||[])str(2,address);
+  str(3,doc.custom_sni);bool(4,doc.has_ipv6);
+  str(5,doc.username);str(6,doc.password);bool(7,doc.skip_verification);
+  if(doc.certificate_base64)add(8,b64ToBytes(doc.certificate_base64));
+  if(doc.upstream_protocol){
+    if(!['http2','http3'].includes(doc.upstream_protocol))throw new Error('Unknown TrustTunnel transport');
+    add(9,ttVarintWrite(doc.upstream_protocol==='http3'?2:1));
+  }
+  bool(10,doc.anti_dpi);str(11,doc.client_random_prefix);
+  str(12,doc.name);
+  if(doc.dns_upstreams){
+    if(!Array.isArray(doc.dns_upstreams))throw new Error('Invalid TrustTunnel DNS upstreams');
+    const serialized=[];
+    for(const address of doc.dns_upstreams){const bytes=textToBytes(String(address));serialized.push(...ttVarintWrite(bytes.length),...bytes);}
+    add(13,serialized);
+  }
+  str(14,doc.subscription_url);str(15,doc.client_random_auth_key);
+  for(const unknown of doc.unknown_tlvs||[]){
+    if(!Number.isSafeInteger(unknown.tag)||unknown.tag<16)throw new Error('Invalid unknown TrustTunnel tag');
+    add(unknown.tag,b64ToBytes(unknown.data));
+  }
+  if(chunks.length>12288)throw new Error('TrustTunnel payload exceeds size limit');
+  return 'tt://?'+bytesToBase64(Uint8Array.from(chunks)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
+}
+function ttToMihomo(doc){
+  const unsupported=['certificate_base64','anti_dpi','client_random_prefix','dns_upstreams','subscription_url','client_random_auth_key','unknown_tlvs'];
+  for(const field of unsupported)if(doc[field]!==undefined && doc[field]!==false)throw new Error('TrustTunnel '+field+' cannot be represented in Mihomo YAML; keep original TT JSON');
+  if(doc.has_ipv6===false)throw new Error('TrustTunnel IPv6 policy cannot be represented in Mihomo');
+  if(!Array.isArray(doc.addresses)||doc.addresses.length!==1)throw new Error('TrustTunnel multiple addresses require original deep-link format');
+  const match=doc.addresses[0].match(/^(?:\[([^\]]+)\]|([^:]+)):(\d+)$/);
+  if(!match||Number(match[3])<1||Number(match[3])>65535)throw new Error('Invalid TrustTunnel address:port');
+  const node={name:doc.name||'TrustTunnel',type:'trusttunnel',server:match[1]||match[2],port:Number(match[3]),username:doc.username,password:doc.password};
+  if(doc.custom_sni||doc.hostname)node.sni=doc.custom_sni||doc.hostname;
+  if(doc.skip_verification!==undefined)node['skip-cert-verify']=doc.skip_verification;
+  if(doc.upstream_protocol==='http3')node.quic=true;
+  return validateMihomoNodes({proxies:[node]});
+}
+function mihomoToTt(obj){
+  const p=obj&&obj.proxies&&obj.proxies[0];
+  if(!p||obj.proxies.length!==1||p.type!=='trusttunnel')throw new Error('TT link requires one TrustTunnel node');
+  const allowed=new Set(['name','type','server','port','username','password','sni','skip-cert-verify','quic']);
+  for(const key of Object.keys(p))if(!allowed.has(key))throw new Error('Mihomo '+key+' has no TrustTunnel deep-link mapping');
+  const server=String(p.server);
+  const address=(server.includes(':')?'['+server+']':server)+':'+p.port;
+  return {type:'trusttunnel-deeplink',version:2,hostname:p.sni||server,addresses:[address],username:p.username,password:p.password,name:p.name,upstream_protocol:p.quic?'http3':'http2',skip_verification:!!p['skip-cert-verify']};
+}
+
+function nativeFormatConvert(input, target){
+  const text=String(input||'').trim();
+  if(!text)throw new Error('Native input is empty');
+  let value;
+  if(text.startsWith('tt://?'))value=parseTrustTunnelDeepLink(text);
+  else if(/^\[Interface\]/im.test(text))value=parseWireGuardIni(text);
+  else if(/^[\[{]/.test(text)){try{value=JSON.parse(text);}catch(_){value=parseMihomoYaml(text);}}
+  else value=parseMihomoYaml(text);
+  if(value && value.type==='trusttunnel-deeplink'){
+    if(target==='tt')return encodeTrustTunnelDeepLink(value);
+    if(target==='json')return JSON.stringify(value,null,2);
+    if(target==='yaml')return dumpMihomoYaml(ttToMihomo(value));
+    throw new Error('INI export is not supported for TrustTunnel');
+  }
+  if(Array.isArray(value))value={proxies:value};
+  if(target==='tt')return encodeTrustTunnelDeepLink(mihomoToTt(validateMihomoNodes(value)));
+  value=validateMihomoNodes(value);
+  if(target==='json')return JSON.stringify(value,null,2);
+  if(target==='yaml')return dumpMihomoYaml(value);
+  if(target==='ini'){
+    if(value.proxies.length!==1||value.proxies[0].type!=='wireguard')throw new Error('INI export requires a single WireGuard node');
+    return wireGuardToIni(value.proxies[0]);
+  }
+  throw new Error('Unsupported native output format');
+}
+function runNativeFormat(mode){
+  const out=$('nativeOutput'),log=$('nativeLog');
+  try{
+    out.value=nativeFormatConvert($('nativeInput').value,mode);
+    log.textContent='Converted successfully. Run the target Core validator before using this configuration.';
+  }catch(e){
+    out.value='';
+    log.textContent='Cannot safely convert: '+(e.message||String(e));
+  }
+}
+
 document.addEventListener('dragover',e=>e.preventDefault());
+$('nativeToYaml').addEventListener('click',()=>runNativeFormat('yaml'));
+$('nativeToJson').addEventListener('click',()=>runNativeFormat('json'));
+$('nativeToIni').addEventListener('click',()=>runNativeFormat('ini'));
+$('nativeToTt').addEventListener('click',()=>runNativeFormat('tt'));
+$('nativeClear').addEventListener('click',()=>{$('nativeInput').value='';$('nativeOutput').value='';$('nativeLog').textContent='Ready.';});
+$('nativeCopy').addEventListener('click',()=>{
+  if(!$('nativeOutput').value)return;
+  navigator.clipboard.writeText($('nativeOutput').value).then(()=>{$('nativeLog').textContent='Output copied.';}).catch(()=>{$('nativeLog').textContent='Copy unavailable. Select and copy output manually.';});
+});
 document.addEventListener('drop',e=>e.preventDefault());
 
 $('bubbleToggle').addEventListener('click',()=>$('bubbleNav').classList.toggle('open'));
