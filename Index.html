@@ -4107,27 +4107,56 @@ function smartConvertRecords(records,target){
   if(target==='xray'||target==='singbox')return JSON.stringify(smartSingleCore(source,target),null,2);
   throw new Error('Unknown output target');
 }
+const SMART_CANDIDATES=['links','subscription','npvt','xray','singbox','mihomoYaml','mihomoJson','wireguard','trusttunnel','netmod','json','inspection','archive'];
+function smartCheckCandidate(records,name,totalInputChars,options,rejections){
+  if(name==='archive'&&records.length===1)return;
+  if(name==='archive'&&totalInputChars>2000000){
+    if(rejections)rejections[name]='Batch is too large for the 2.2 MB output limit';
+    return;
+  }
+  try{
+    const output=smartConvertRecords(records,name);
+    if(output&&String(output).length<=2200000)options[name]=output;
+    else if(rejections)rejections[name]='Output exceeds size limit or is empty';
+  }catch(e){if(rejections)rejections[name]=String(e.message||e);}
+}
 function smartAvailable(records,rejections=null){
   const options={};
   if(!records.length)return options;
-  const totalInputChars=records.reduce((sum,r)=>sum+String(r.text||'').length,0);
-  const candidate=['links','subscription','npvt','xray','singbox','mihomoYaml','mihomoJson','wireguard','trusttunnel','netmod','json','inspection','archive'];
-  for(const name of candidate){
-    if(name==='archive'&&records.length===1)continue;
-    if(name==='archive'&&totalInputChars>2000000){
-      if(rejections)rejections[name]='Batch is too large for the 2.2 MB output limit';
-      continue;
-    }
-    try{
-      const output=smartConvertRecords(records,name);
-      if(output&&String(output).length<=2200000)options[name]=output;
-    }catch(e){ if(rejections)rejections[name]=String(e.message||e); }
-  }
+  const size=records.reduce((sum,r)=>sum+String(r.text||'').length,0);
+  for(const name of SMART_CANDIDATES)smartCheckCandidate(records,name,size,options,rejections);
   return options;
+}
+// Keep the synchronous API for regression tests; yield between format candidates
+// in the UI so control events and cancellation are not starved by the whole batch.
+async function smartAvailableResponsive(records,rejections,isCurrent){
+  const options={};
+  if(!records.length)return options;
+  const size=records.reduce((sum,r)=>sum+String(r.text||'').length,0);
+  for(const name of SMART_CANDIDATES){
+    if(!isCurrent())return null;
+    smartCheckCandidate(records,name,size,options,rejections);
+    await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  return isCurrent()?options:null;
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
 const smartState={records:[],outputs:{},rejections:{}};
+function smartDefaultTarget(records,formats){
+  if(!formats.length)return '';
+  const source=records.length===1?records[0].kind:'';
+  const preferred=source==='links'||source==='subscription'
+    ?['xray','singbox','mihomoYaml','npvt','links','subscription']
+    :source==='wireguard'?['mihomoYaml','wireguard']
+    :source==='npvt'||source==='npvo'?['links','subscription']
+    :source==='mihomo'?['mihomoYaml','mihomoJson']
+    :source==='xray'?['xray','links']
+    :source==='singbox'?['singbox','links']
+    :source==='npvs'?['inspection']
+    :[];
+  return preferred.find(format=>formats.includes(format))||formats[0];
+}
 function smartRender(){
   const detected=$('smartDetected'),status=$('smartStatus'),select=$('smartTarget');
   const outputs=smartState.outputs,previous=select.value;
@@ -4141,18 +4170,27 @@ function smartRender(){
   }else{
     for(const key of formats)select.add(new Option(SMART_TARGETS[key].label,key));
     select.disabled=false;
-    select.value=formats.includes(previous)?previous:formats[0];
+    select.value=formats.includes(previous)?previous:smartDefaultTarget(smartState.records,formats);
     smartChooseTarget();
   }
-  detected.textContent=smartState.records.length
-    ?smartState.records.map((r,i)=>(i+1)+'. '+r.name+': '+r.label).join('\n')
+  const rows=smartState.records.map((r,i)=>(i+1)+'. '+r.name+': '+r.label);
+  detected.textContent=rows.length
+    ?rows.slice(0,4).join('\n')+(rows.length>4?'\n+'+(rows.length-4)+' more detected file(s)':'')
     :'No input yet';
-  const relevant=smartState.records.some(r=>r.kind==='xray'||r.kind==='singbox');
-  const blocked=['links','subscription'].filter(key=>smartState.rejections[key]);
-  const reason=relevant&&blocked.length?'\nLink export unavailable: '+smartState.rejections[blocked[0]]:'';
+  const more=$('smartDetectedMore');
+  more.hidden=rows.length<=4;
+  more.open=false;
+  $('smartDetectedAll').textContent=rows.join('\n');
+  const blocked=Object.entries(smartState.rejections);
+  const rejected=$('smartRejectedMore');
+  rejected.hidden=!blocked.length;
+  rejected.open=false;
+  rejected.querySelector('summary').textContent='Why '+blocked.length+' output format(s) are unavailable';
+  $('smartRejectedAll').textContent=blocked.map(([key,reason])=>
+    SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')+reason
+      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')
     :'Ready. Files are processed entirely in this browser.';
 }
 function smartChooseTarget(){
@@ -4161,39 +4199,88 @@ function smartChooseTarget(){
   $('smartOutput').value=data;
   $('smartCopy').disabled=$('smartDownload').disabled=!data;
 }
-function smartCommit(records){
-  smartState.records=records;
+let smartRevision=0;
+function smartSetBusy(isBusy){
+  $('smartWorkspace').setAttribute('aria-busy',isBusy?'true':'false');
+}
+function smartBegin(status){
+  const revision=++smartRevision;
+  smartState.records=[];
   smartState.rejections={};
-  smartState.outputs=smartAvailable(records,smartState.rejections);
+  smartState.outputs={};
   smartRender();
+  smartSetBusy(true);
+  $('smartStatus').textContent=status;
+  return revision;
+}
+async function smartCommit(records,revision){
+  if(revision!==smartRevision)return;
+  if(!records.length){
+    smartState.records=[];
+    smartState.outputs={};
+    smartState.rejections={};
+    smartRender();
+    smartSetBusy(false);
+    return;
+  }
+  const rejects={};
+  const outputs=await smartAvailableResponsive(records,rejects,()=>revision===smartRevision);
+  if(revision!==smartRevision||outputs===null)return;
+  smartState.records=records;
+  smartState.rejections=rejects;
+  smartState.outputs=outputs;
+  smartRender();
+  smartSetBusy(false);
 }
 let smartDebounce;
 $('smartInput').addEventListener('input',()=>{
   clearTimeout(smartDebounce);
-  smartDebounce=setTimeout(()=>{
+  const revision=smartBegin('Checking pasted input locally…');
+  smartDebounce=setTimeout(async()=>{
     $('smartFiles').value='';
+    if(revision!==smartRevision)return;
     const value=$('smartInput').value.trim();
-    if(!value){smartCommit([]);return;}
-    try{smartCommit([smartRecognizeText(value)]);}
-    catch(e){smartCommit([]);$('smartStatus').textContent='Input not recognized: '+(e.message||e);}
+    if(!value){await smartCommit([],revision);return;}
+    try{await smartCommit([smartRecognizeText(value)],revision);}
+    catch(e){
+      if(revision!==smartRevision)return;
+      smartState.records=[];smartState.outputs={};smartState.rejections={};
+      smartRender();smartSetBusy(false);
+      $('smartStatus').textContent='Input not recognized: '+(e.message||e);
+    }
   },220);
 });
 async function smartImportFiles(files){
   if(!files||!files.length)return;
-  if(files.length>80){$('smartStatus').textContent='Maximum 80 files per batch.';return;}
+  clearTimeout(smartDebounce);
+  const revision=smartBegin('Inspecting '+files.length+' file(s) locally…');
+  if(files.length>80){
+    smartSetBusy(false);
+    $('smartStatus').textContent='Maximum 80 files per batch.';
+    return;
+  }
   $('smartInput').value='';
-  $('smartStatus').textContent='Inspecting files locally…';
   const records=[],issues=[];
   for(const file of files){
-    try{records.push(await smartRecognizeFile(file));}
-    catch(e){issues.push(file.name+': '+(e.message||e));}
+    if(revision!==smartRevision)return;
+    try{
+      const record=await smartRecognizeFile(file);
+      if(revision!==smartRevision)return;
+      records.push(record);
+    }catch(e){issues.push(file.name+': '+(e.message||e));}
   }
-  smartCommit(records);
+  if(revision!==smartRevision)return;
+  await smartCommit(records,revision);
+  if(revision!==smartRevision)return;
   if(issues.length){
     $('smartStatus').textContent+='\n'+issues.length+' source(s) rejected:\n'+issues.slice(0,8).join('\n');
   }
 }
-$('smartFiles').addEventListener('change',e=>smartImportFiles(Array.from(e.target.files||[])));
+$('smartFiles').addEventListener('change',e=>{
+  const files=Array.from(e.target.files||[]);
+  e.target.value=''; // Allow choosing the same filename again.
+  void smartImportFiles(files);
+});
 $('smartDrop').addEventListener('click',()=>$('smartFiles').click());
 $('smartDrop').addEventListener('keydown',e=>{
   if(e.key==='Enter'||e.key===' '){e.preventDefault();$('smartFiles').click();}
@@ -4202,7 +4289,7 @@ $('smartDrop').addEventListener('dragover',e=>{e.preventDefault();$('smartDrop')
 $('smartDrop').addEventListener('dragleave',()=>$('smartDrop').classList.remove('over'));
 $('smartDrop').addEventListener('drop',e=>{
   e.preventDefault();e.stopPropagation();$('smartDrop').classList.remove('over');
-  smartImportFiles(Array.from(e.dataTransfer.files||[]));
+  void smartImportFiles(Array.from(e.dataTransfer.files||[]));
 });
 $('smartTarget').addEventListener('change',smartChooseTarget);
 $('smartCopy').addEventListener('click',async()=>{
@@ -4219,8 +4306,9 @@ $('smartDownload').addEventListener('click',()=>{
 });
 $('smartReset').addEventListener('click',()=>{
   clearTimeout(smartDebounce);
+  const revision=++smartRevision;
   $('smartFiles').value='';$('smartInput').value='';
-  smartCommit([]);
+  void smartCommit([],revision);
 });
 smartRender();
 
@@ -4349,11 +4437,12 @@ document.addEventListener('keydown',e=>{
     const active = document.activeElement;
     const tag = (active && active.tagName ? active.tagName : '').toLowerCase();
     if(tag === 'textarea' || tag === 'input'){
-      e.preventDefault();
-      if(active && active.id === 'reverseInput') buildNpvt();
-      else if(active && active.id === 'forwardInput') processForwardText();
-      else if(active && active.id === 'jsonInput') jsonToLinksAction();
-      else if(active && active.id === 'linksJsonInput') linksToJsonAction();
+      const actions={reverseInput:buildNpvt,forwardInput:processForwardText,
+        jsonInput:jsonToLinksAction,linksJsonInput:linksToJsonAction};
+      if(active && Object.prototype.hasOwnProperty.call(actions,active.id)){
+        e.preventDefault();
+        actions[active.id]();
+      }
     }
   }
 });
