@@ -1,40 +1,42 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:020704,50:39ff88,100:00d46a&height=185&section=header&text=NPVT%20Terminal%20Converter&fontColor=d8ffe9&fontSize=38&fontAlignY=38&desc=Offline%20Local%20Single%20HTML%20%7C%20NPVT1%20%E2%86%94%20V2Ray%20%7C%20Xray%20JSON%20Toolkit&descAlignY=58&animation=fadeIn" alt="NPVT Terminal Converter animated header" />
+# NPV Tunnel NPVT Converter
 
-<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=20&duration=2800&pause=700&color=39FF88&center=true&vCenter=true&width=860&lines=NPVT1+containers+%E2%86%94+V2Ray+share+links;Xray+%2F+V2Ray+JSON+profile+toolkit;Offline+browser-only+converter;Local-first+privacy+with+zero+backend" alt="Animated terminal typing intro" />
+<strong>Offline · Local · Single-file HTML · Smart Config Converter</strong>
+
+<h3>Download the version for your device</h3>
+
+<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">
+  <img src="https://img.shields.io/badge/MOBILE_DOWNLOAD-mobile.html-80d8ad?style=for-the-badge&labelColor=07110d" alt="Download mobile.html for Android and iOS">
+</a>
+<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
+  <img src="https://img.shields.io/badge/WINDOWS_DESKTOP_DOWNLOAD-Index.html-59c194?style=for-the-badge&labelColor=07110d" alt="Download Index.html for Windows and desktop">
+</a>
+
+<p>
+  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html"><strong>Mobile: mobile.html</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html"><strong>Windows / Desktop: Index.html</strong></a>
+</p>
+
+<p>Both are standalone offline files with HTML, CSS and JavaScript built in. No installation or separate assets required.</p>
+
+<p>If your phone displays the raw HTML as text instead of downloading it, <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">download the ZIP</a> and extract <code>mobile.html</code>.</p>
+
+---
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:07110d,50:80d8ad,100:59c194&height=185&section=header&text=NPVT%20Terminal%20Converter&fontColor=d9f2e4&fontSize=38&fontAlignY=38&desc=Offline%20Local%20Single%20HTML%20%7C%20NPVT1%20%E2%86%94%20V2Ray%20%7C%20Xray%20JSON%20Toolkit&descAlignY=58&animation=fadeIn" alt="NPVT Terminal Converter animated header" />
+
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=20&duration=2800&pause=700&color=80D8AD&center=true&vCenter=true&width=860&lines=NPVT1+containers+%E2%86%94+V2Ray+share+links;Xray+%2F+V2Ray+JSON+profile+toolkit;Offline+browser-only+converter;Local-first+privacy+with+zero+backend" alt="Animated terminal typing intro" />
 
 <br />
 <br />
 
 <img src="assets/Prev.png" alt="NPV Tunnel NPVT Converter technical preview" width="100%" />
 
-# NPV Tunnel NPVT Converter
-
-<strong>Offline · Local · Single HTML · NPVT1 · V2Ray Links · Xray JSON Toolkit</strong>
-
-<br><br>
-
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">
-  <img src="https://img.shields.io/badge/⬇_MOBILE_DOWNLOAD-ZIP-39ff88?style=for-the-badge&labelColor=020704" alt="Mobile Download ZIP">
-</a>
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
-  <img src="https://img.shields.io/badge/DESKTOP_RAW-Index.html-00d46a?style=for-the-badge&labelColor=020704" alt="Desktop raw Index.html">
-</a>
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">
-  <img src="https://img.shields.io/badge/MOBILE_SINGLE_FILE-mobile.html-80d8ad?style=for-the-badge&labelColor=020704" alt="Mobile standalone HTML">
-</a>
-<img src="https://img.shields.io/badge/Runtime-Local_Only-b8ffd2?style=for-the-badge&labelColor=020704" alt="Local only">
-<img src="https://img.shields.io/badge/Container-NPVT1-39ff88?style=for-the-badge&labelColor=020704" alt="NPVT1">
-<img src="https://img.shields.io/badge/JSON-Bidirectional-00d46a?style=for-the-badge&labelColor=020704" alt="Bidirectional JSON conversion">
-
-<h2>
-  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">Mobile: single offline HTML</a>
-</h2>
-
-<p>
-  Mobile browsers may open raw HTML as text. If direct download is blocked, use the ZIP download, extract <code>mobile.html</code>, and open it in a browser that supports local HTML files.
-</p>
+<img src="https://img.shields.io/badge/Runtime-Local_Only-d9f2e4?style=for-the-badge&labelColor=07110d" alt="Local only">
+<img src="https://img.shields.io/badge/Container-NPVT1-80d8ad?style=for-the-badge&labelColor=07110d" alt="NPVT1">
+<img src="https://img.shields.io/badge/JSON-Bidirectional-59c194?style=for-the-badge&labelColor=07110d" alt="Bidirectional JSON conversion">
 
 </div>
 
@@ -57,7 +59,7 @@ The web UI now has **one visible import area** and **one export area**, replacin
 
 Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v5 encrypted files are recognized, but without their real secret only safe header inspection is possible.
 
-**Usage:** open `Index.html`, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
+**Usage:** open `mobile.html` on a phone or `Index.html` on desktop, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
 
 Basic **VLESS, VMess, Trojan and Shadowsocks** mappings to/from Mihomo YAML/JSON are also available when all transport and security options can be preserved; other native-only settings are rejected.
 
