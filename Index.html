@@ -4046,22 +4046,27 @@ function smartConvertRecords(records,target){
   if(target==='xray'||target==='singbox')return JSON.stringify(smartSingleCore(source,target),null,2);
   throw new Error('Unknown output target');
 }
-function smartAvailable(records){
+function smartAvailable(records,rejections=null){
   const options={};
   if(!records.length)return options;
+  const totalInputChars=records.reduce((sum,r)=>sum+String(r.text||'').length,0);
   const candidate=['links','subscription','npvt','xray','singbox','mihomoYaml','mihomoJson','wireguard','trusttunnel','netmod','json','inspection','archive'];
   for(const name of candidate){
     if(name==='archive'&&records.length===1)continue;
+    if(name==='archive'&&totalInputChars>2000000){
+      if(rejections)rejections[name]='Batch is too large for the 2.2 MB output limit';
+      continue;
+    }
     try{
       const output=smartConvertRecords(records,name);
       if(output&&String(output).length<=2200000)options[name]=output;
-    }catch(_){ /* unavailable format must never appear in the output dropdown */ }
+    }catch(e){ if(rejections)rejections[name]=String(e.message||e); }
   }
   return options;
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
-const smartState={records:[],outputs:{}};
+const smartState={records:[],outputs:{},rejections:{}};
 function smartRender(){
   const detected=$('smartDetected'),status=$('smartStatus'),select=$('smartTarget');
   const outputs=smartState.outputs,previous=select.value;
@@ -4081,9 +4086,12 @@ function smartRender(){
   detected.textContent=smartState.records.length
     ?smartState.records.map((r,i)=>(i+1)+'. '+r.name+': '+r.label).join('\n')
     :'No input yet';
+  const relevant=smartState.records.some(r=>r.kind==='xray'||r.kind==='singbox');
+  const blocked=['links','subscription'].filter(key=>smartState.rejections[key]);
+  const reason=relevant&&blocked.length?'\nLink export unavailable: '+smartState.rejections[blocked[0]]:'';
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')
+      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')+reason
     :'Ready. Files are processed entirely in this browser.';
 }
 function smartChooseTarget(){
@@ -4094,7 +4102,8 @@ function smartChooseTarget(){
 }
 function smartCommit(records){
   smartState.records=records;
-  smartState.outputs=smartAvailable(records);
+  smartState.rejections={};
+  smartState.outputs=smartAvailable(records,smartState.rejections);
   smartRender();
 }
 let smartDebounce;
