@@ -3917,10 +3917,45 @@ function smartMihomoNodeFromLink(link){
   return validateMihomoNodes({proxies:[node]}).proxies[0];
 }
 
+function assertSmartXrayUriFidelity(config){
+  for(const outbound of config.outbounds||[]){
+    if(!outbound || !['vless','vmess','trojan','shadowsocks','socks'].includes(outbound.protocol))continue;
+    if(Object.keys(outbound).some(k=>!['protocol','tag','settings','streamSettings','mux'].includes(k)))
+      throw new Error('Advanced Xray outbound fields require the original JSON');
+    if(outbound.mux && outbound.mux.enabled)
+      throw new Error('Enabled Xray multiplexing cannot be retained in a share URI');
+    const stream=outbound.streamSettings||{};
+    if(Object.keys(stream).some(k=>!['network','security','tcpSettings','wsSettings','grpcSettings','xhttpSettings','tlsSettings','realitySettings'].includes(k)))
+      throw new Error('Advanced Xray stream settings require the original JSON');
+    const network=normalizeNetworkId(stream.network||'tcp');
+    if(!['tcp','ws','grpc','xhttp'].includes(network))
+      throw new Error('Xray transport '+network+' requires native JSON');
+    const tls=stream.tlsSettings||{};
+    if(Object.keys(tls).some(k=>!['allowInsecure','serverName','alpn','fingerprint','show','pinnedPeerCertSha256','verifyPeerCertByName'].includes(k)))
+      throw new Error('Advanced Xray TLS settings require native JSON');
+    const reality=stream.realitySettings||{};
+    if(Object.keys(reality).some(k=>!['allowInsecure','serverName','fingerprint','publicKey','shortId','spiderX','show'].includes(k)))
+      throw new Error('Advanced Xray REALITY settings require native JSON');
+    const ws=stream.wsSettings||{};
+    if(Object.keys(ws).some(k=>!['path','headers','host'].includes(k)) ||
+        (ws.headers&&Object.keys(ws.headers).some(k=>k.toLowerCase()!=='host')))
+      throw new Error('Custom WebSocket options require native JSON');
+    const grpc=stream.grpcSettings||{};
+    if(Object.keys(grpc).some(k=>!['serviceName','authority','multiMode','idle_timeout','health_check_timeout'].includes(k)) ||
+        grpc.multiMode || (grpc.idle_timeout!==undefined&&grpc.idle_timeout!==60) ||
+        (grpc.health_check_timeout!==undefined&&grpc.health_check_timeout!==20))
+      throw new Error('Custom gRPC options require native JSON');
+    const tcp=stream.tcpSettings||{};
+    if(Object.keys(tcp).some(k=>k!=='header') ||
+       (tcp.header && Object.keys(tcp.header).some(k=>k!=='type')))
+      throw new Error('Custom TCP headers require native JSON');
+  }
+}
 function smartSourceLinks(source){
   if(source.links&&source.links.length)return source.links;
   if(source.kind==='mihomo')return smartNativeMihomo(source).proxies.map(smartMihomoLinkFromNode);
   if(source.kind==='xray'||source.kind==='singbox'){
+    if(source.kind==='xray')assertSmartXrayUriFidelity(source.obj);
     const result=convertJSONToLinks(source.obj,source.name);
     if(result.errors.length)throw new Error(result.errors.join('; '));
     if(!result.links.length)throw new Error('No lossless share-URI mapping');
