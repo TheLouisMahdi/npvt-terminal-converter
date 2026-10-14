@@ -82,13 +82,13 @@ body:after{
   position:relative;
   overflow:hidden;
 }
-.hero-copy{padding:30px}
+.hero-copy{padding:24px}
 .hero-copy:before,.hero-panel:before{
   content:"";position:absolute;inset:-1px;background:linear-gradient(110deg,transparent,rgba(128,216,173,.08),transparent);transform:translateX(-120%);animation:sweep 6.4s ease-in-out infinite;pointer-events:none
 }
 .hero-copy>*{position:relative}
 .kicker{font-family:var(--mono);color:var(--green);font-size:13px;letter-spacing:.18em;text-transform:uppercase;text-shadow:0 0 16px rgba(128,216,173,.22)}
-h1{margin:10px 0 13px;font-family:var(--mono);font-size:clamp(36px,6vw,72px);line-height:.94;letter-spacing:-.075em;text-shadow:0 0 20px rgba(128,216,173,.12)}
+h1{margin:10px 0 13px;font-family:var(--mono);font-size:clamp(36px,5vw,60px);line-height:.94;letter-spacing:-.075em;text-shadow:0 0 20px rgba(128,216,173,.12)}
 .caret{display:inline-block;color:var(--green);animation:caret 1s steps(1) infinite}
 .hero p{max-width:780px;margin:0;color:var(--muted);line-height:1.82;font-size:15px}
 .hero strong{color:var(--green3);font-weight:800}
@@ -260,15 +260,23 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
 .smart-drop{border:1px dashed var(--line2);border-radius:17px;padding:23px 15px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:rgba(128,216,173,.024);text-align:center}
 .smart-drop strong{color:var(--green3);font:700 14px var(--mono)}
 .smart-drop span{color:var(--muted);font:11px var(--mono)}
-.smart-drop:hover,.smart-drop:focus-visible,.smart-drop.over{border-color:var(--green);background:rgba(128,216,173,.07);outline:none}
+.smart-drop:hover,.smart-drop.over{border-color:var(--green);background:rgba(128,216,173,.07)}
+.smart-drop:focus-visible{border-color:var(--green);outline:2px solid var(--green);outline-offset:3px;background:rgba(128,216,173,.07)}
 .smart-workspace textarea{min-height:270px;flex:1;border-radius:15px}
+.smart-more{font:12px/1.6 var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.smart-more[hidden]{display:none}
+.smart-more summary{color:var(--green3);cursor:pointer}
+.smart-more-content{max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:9px;border-top:1px solid var(--line);padding-top:9px}
+.smart-more summary:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .smart-result select{background:#101b15;color:var(--green3);border:1px solid var(--line2);padding:13px;border-radius:12px;min-height:46px;font:12px var(--mono);max-width:100%}
 .smart-result select:disabled{opacity:.5}
 .smart-detected{border:1px solid var(--line);background:rgba(0,0,0,.24);border-radius:13px;padding:10px;color:var(--muted);font:12px/1.6 var(--mono);min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}
 .smart-buttons{display:flex;flex-wrap:wrap;gap:9px}
 .smart-buttons .btn{flex:1 1 auto;justify-content:center}
 #smartStatus{max-height:150px;overflow-y:auto}
+@media(max-width:980px){.hero-panel{display:none}}
 @media(max-width:860px){.smart-columns{grid-template-columns:1fr}.smart-workspace textarea{min-height:185px}.smart-workspace{padding:14px}}
+@media(max-width:760px){.smart-workspace textarea,.smart-result select{font-size:16px}.smart-drop span,.smart-more{font-size:13px}.smart-head p{font-size:14px}.smart-workspace label.input-label{font-size:13px}}
 @media(max-width:500px){.hero-panel{display:none}.smart-head h2{font-size:19px}.smart-status-indicator{font-size:9px}.smart-buttons .btn{min-width:0}}
 
 </style>
@@ -313,7 +321,7 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
     </aside>
   </section>
 
-  <section id="smartWorkspace" class="panel smart-workspace">
+  <section id="smartWorkspace" class="panel smart-workspace" aria-busy="false">
     <div class="smart-head">
       <div><h2>Universal converter</h2><p>Import once. Detected formats determine the available exports. Runs locally.</p></div>
       <span class="smart-status-indicator">OFFLINE</span>
@@ -326,19 +334,22 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
           <span>Multiple files · NPVT, NPVS, NM, JSON, YAML, INI, TXT, subscriptions</span>
         </div>
         <input type="file" id="smartFiles" multiple accept=".npvt,.npvs,.nm,.json,.yaml,.yml,.ini,.conf,.txt,.base64,*/*" hidden>
-        <textarea id="smartInput" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
+        <textarea id="smartInput" aria-describedby="smartDetected smartStatus" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
         <div id="smartDetected" class="smart-detected" aria-live="polite">No input yet</div>
+        <details id="smartDetectedMore" class="smart-more" hidden><summary>Show all detected files</summary><div id="smartDetectedAll" class="smart-more-content"></div></details>
       </div>
       <div class="smart-result">
         <label class="input-label" for="smartTarget">Output format · compatible options only</label>
         <select id="smartTarget" disabled aria-label="Compatible output format"><option value="">Detect input first</option></select>
-        <textarea id="smartOutput" readonly spellcheck="false" placeholder="After detection choose an available output format."></textarea>
+        <label class="input-label" for="smartOutput">Converted output</label>
+        <textarea id="smartOutput" aria-describedby="smartStatus" readonly spellcheck="false" placeholder="After detection choose an available output format."></textarea>
         <div class="smart-buttons">
           <button class="btn primary" type="button" id="smartDownload" disabled>Download</button>
           <button class="btn secondary" type="button" id="smartCopy" disabled>Copy</button>
           <button class="btn bad" type="button" id="smartReset">Clear</button>
         </div>
         <div class="log" role="status" aria-live="polite" id="smartStatus">Ready. Nothing is sent to a server.</div>
+        <details id="smartRejectedMore" class="smart-more" hidden><summary>Why some formats are unavailable</summary><div id="smartRejectedAll" class="smart-more-content"></div></details>
       </div>
     </div>
   </section>
