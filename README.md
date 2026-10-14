@@ -6,22 +6,23 @@
 
 <h3>Download the version for your device</h3>
 
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">
+<a href="https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=mobile">
   <img src="https://img.shields.io/badge/MOBILE_DOWNLOAD-mobile.html-80d8ad?style=for-the-badge&labelColor=07110d" alt="Download mobile.html for Android and iOS">
 </a>
-<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
+<a href="https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=desktop">
   <img src="https://img.shields.io/badge/WINDOWS_DESKTOP_DOWNLOAD-Index.html-59c194?style=for-the-badge&labelColor=07110d" alt="Download Index.html for Windows and desktop">
 </a>
 
 <p>
-  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html"><strong>Mobile: mobile.html</strong></a>
+  <a href="https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=mobile"><strong>Mobile: mobile.html</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html"><strong>Windows / Desktop: Index.html</strong></a>
+  <a href="https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=desktop"><strong>Windows / Desktop: Index.html</strong></a>
 </p>
 
-<p>Both are standalone offline files with HTML, CSS and JavaScript built in. No installation or separate assets required.</p>
+<p><a href="https://thelouismahdi.github.io/npvt-terminal-converter/mobile.html"><strong>▶ Open mobile panel online</strong></a> &nbsp;·&nbsp; <a href="https://thelouismahdi.github.io/npvt-terminal-converter/Index.html"><strong>▶ Open desktop panel online</strong></a></p>
+<p>Both downloads contain standalone offline HTML, CSS and JavaScript. No installation or separate assets required.</p>
 
-<p>If your phone displays the raw HTML as text instead of downloading it, <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">download the ZIP</a> and extract <code>mobile.html</code>.</p>
+<p><strong>Note:</strong> GitHub Raw displays HTML source rather than running the panel. Use <em>Open online</em> to run it, or <em>Download</em> to save the standalone file. If your browser blocks automatic downloads, use the visible download buttons on the download page, or <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">download the ZIP</a>.</p>
 
 <br />
 
@@ -105,7 +106,7 @@ Full boundaries: [Native format adapters](docs/NATIVE_FORMATS.md), [Core compati
 
 ### Mobile (standalone `mobile.html`)
 
-[**Get mobile.html**](https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html) — a single file with its **HTML, CSS, JavaScript and full conversion engine embedded**, requiring no external scripts, stylesheets, backend or internet connection.
+[**Download mobile.html**](https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=mobile) · [**Open mobile panel online**](https://thelouismahdi.github.io/npvt-terminal-converter/mobile.html). The downloaded file embeds all HTML, CSS, JavaScript and conversion logic, with no runtime network dependency.
 
 Its layout is designed for narrow touchscreens: compact header, one-column conversion form, readable inputs, full-width target selector and mobile-friendly actions. The original [desktop `Index.html`](Index.html) remains unchanged.
 
@@ -134,15 +135,11 @@ After download:
 3. Tap `mobile.html` (or use `Index.html` for desktop).
 4. Use the converter locally in a browser that can open local HTML files.
 
-### Direct HTML Link
+### Windows / Desktop
 
-Desktop browsers usually handle the direct HTML file correctly:
+[**Download Index.html**](https://thelouismahdi.github.io/npvt-terminal-converter/download.html?file=desktop) · [**Open desktop panel online**](https://thelouismahdi.github.io/npvt-terminal-converter/Index.html).
 
-```text
-https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html
-```
-
-On some mobile browsers, this link may display the source code as text instead of downloading it. Use the ZIP link above if that happens.
+**Why not GitHub Raw?** GitHub serves raw HTML as source text, which is why your browser showed the `<!doctype html>` code. For browser execution use GitHub Pages; for a standalone file use the download page. It uses a same-origin download link, with a manual download button if the browser blocks an automatic download.
 
 ---
 
