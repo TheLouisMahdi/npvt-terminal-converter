@@ -22,7 +22,9 @@ jobs:
         run: |
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
-      - name: Test desktop and mobile flows
+      - name: Confirm offline mobile HTML is in sync with desktop engine
+        run: node tools/build_mobile.cjs --check
+      - name: Test desktop and both mobile flows
         run: node tests/browser-smoke.cjs
       - uses: actions/upload-artifact@v4
         if: always()
