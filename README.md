@@ -23,7 +23,7 @@
 
 <p>If your phone displays the raw HTML as text instead of downloading it, <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">download the ZIP</a> and extract <code>mobile.html</code>.</p>
 
----
+<br />
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:07110d,50:80d8ad,100:59c194&height=185&section=header&text=NPVT%20Terminal%20Converter&fontColor=d9f2e4&fontSize=38&fontAlignY=38&desc=Offline%20Local%20Single%20HTML%20%7C%20NPVT1%20%E2%86%94%20V2Ray%20%7C%20Xray%20JSON%20Toolkit&descAlignY=58&animation=fadeIn" alt="NPVT Terminal Converter animated header" />
 
