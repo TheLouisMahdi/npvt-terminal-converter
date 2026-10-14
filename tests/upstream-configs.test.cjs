@@ -140,7 +140,7 @@ test('Mihomo Snell YAML remains native and never invents VLESS, VMess, or Xray',
 });
 
 test('JSONC comments do not damage literal URLs, and trailing commas import safely', () => {
-  const input = '{"origin":"https://example.org/test//path", /* note */ "enabled":true,}';
+  const input = '// leading comment\n{"origin":"https://example.org/test//path", /* note */ "enabled":true,}';
   const result = outputs(input);
   assert.equal(JSON.parse(result.json).origin, 'https://example.org/test//path');
   assert.equal(JSON.parse(result.json).enabled, true);
