@@ -3811,7 +3811,7 @@ function smartRecognizeText(text,name='pasted input'){
     parseWireGuardIni(raw);
     return {kind:'wireguard',label:'WireGuard / AmneziaWG INI',name,text:raw,links:[]};
   }
-  if(/^[\[{]/.test(raw)){
+  if(/^[\[{]/.test(raw)||/^(?:\/\/|\/\*)/.test(raw)){
     let parsed;
     try{parsed=parseJsonWithComments(raw)}catch(_){parsed=null}
     if(parsed){
