@@ -659,19 +659,19 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 
 ## Sources, repositories, licenses, and acknowledgements
 
-This inventory records the **upstream projects and specifications consulted, monitored, or used for testing**. Repository license identifiers were checked against their public upstream repositories on **October 14, 2026**. Consult each upstream's current \`LICENSE\`, notices, and asset terms before redistributing any of its code.
+This inventory records the **upstream projects and specifications consulted, monitored, or used for testing**. Repository license identifiers were checked against their public upstream repositories on **October 14, 2026**. Consult each upstream's current `LICENSE`, notices, and asset terms before redistributing any of its code.
 
 ### Licensing scope
 
 - **This repository:** [MIT License](LICENSE), copyright © 2026 Mahdi Gh. This is the license declared for the NPVT Terminal Converter project; it does not override third-party copyrights or licenses.
-- **Distributed converter:** [\`Index.html\`](Index.html) is one self-contained offline HTML/CSS/JavaScript application. It **does not import third-party JavaScript packages**, ship the proxy cores listed below, or require Node.js, Python, Docker or Playwright at runtime.
+- **Distributed converter:** [`Index.html`](Index.html) is one self-contained offline HTML/CSS/JavaScript application. It **does not import third-party JavaScript packages**, ship the proxy cores listed below, or require Node.js, Python, Docker or Playwright at runtime.
 - **Upstream source code:** The projects below provide specifications, comparative references, sample configuration structures, and/or external CI validators. Listing a repository does **not** mean that its source code is bundled, that its license changes this project's MIT license, or that the upstream authors endorse this converter.
 - **Sample configurations:** [upstream-derived regression tests](tests/upstream-configs.test.cjs) use synthetic credentials and example hosts, modeled on documented formats. The [Xray examples](https://github.com/XTLS/Xray-examples) repository is **CC-BY-SA-4.0** and is attributed below. Any future verbatim reuse or adaptation of licensed examples or code must separately satisfy its terms.
 - **Provenance limit:** This list is an inventory of identifiable references and tooling, **not an independent line-by-line copyright audit** of historical embedded code or locally stored images. No permission to copy code from an unlicensed or restrictively licensed reference is implied.
 
 ### Official protocol implementations monitored for compatibility
 
-These are the exact **14 repositories** referenced by [\`tools/protocol_watch.py\`](tools/protocol_watch.py). They are monitored for upstream version changes; none is automatically downloaded into the browser app.
+These are the exact **14 repositories** referenced by [`tools/protocol_watch.py`](tools/protocol_watch.py). They are monitored for upstream version changes; none is automatically downloaded into the browser app.
 
 | Repository | Upstream license (as identified) | Role |
 | --- | --- | --- |
@@ -680,7 +680,7 @@ These are the exact **14 repositories** referenced by [\`tools/protocol_watch.py
 | [amnezia-vpn/amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | AmneziaWG protocol reference |
 | [klzgrad/naiveproxy](https://github.com/klzgrad/naiveproxy) | BSD-3-Clause | Protocol compatibility watch; no implemented NaiveProxy adapter |
 | [enfein/mieru](https://github.com/enfein/mieru) | GPL-3.0 | Mieru native-format reference |
-| [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional naming/association notice in its [LICENSE](https://github.com/SagerNet/sing-box/blob/dev/LICENSE) | Native JSON format and external CI validator |
+| [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional naming/association notice in its [LICENSE](https://github.com/SagerNet/sing-box/blob/testing/LICENSE) | Native JSON format and external CI validator |
 | [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | MIT | Mihomo / Clash schema and external CI validator |
 | [HyNetworks/hysteria](https://github.com/HyNetworks/hysteria) | MIT | Hysteria2 URI, Gecko and Realm reference |
 | [anytls/anytls-go](https://github.com/anytls/anytls-go) | **Not established:** no top-level license detected | AnyTLS protocol and [URI specification](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md); do not assume reuse permission |
@@ -719,15 +719,15 @@ The live converter needs **none** of these; GitHub Actions invokes them to test 
 | [actions/setup-node](https://github.com/actions/setup-node) | MIT | GitHub Actions Node.js setup |
 | [actions/setup-python](https://github.com/actions/setup-python) | MIT | GitHub Actions Python setup |
 | [actions/upload-artifact](https://github.com/actions/upload-artifact) | MIT | Stores temporary browser test screenshots |
-| [Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | External, version-pinned Docker validator (\`run -test\`) |
-| [sing-box](https://github.com/SagerNet/sing-box) | See upstream GPL license and additional notice above | External, version-pinned Docker validator (\`check\`) |
-| [Mihomo](https://github.com/MetaCubeX/mihomo) | MIT | External, version-pinned Docker validator (\`-t\`) |
+| [Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | External, version-pinned Docker validator (`run -test`) |
+| [sing-box](https://github.com/SagerNet/sing-box) | See upstream GPL license and additional notice above | External, version-pinned Docker validator (`check`) |
+| [Mihomo](https://github.com/MetaCubeX/mihomo) | MIT | External, version-pinned Docker validator (`-t`) |
 
 Check the exact versions and image digests in [the CI workflows](.github/workflows/) rather than treating this table as a lockfile.
 
 ### README artwork and badges (documentation only)
 
-The following services render graphics in GitHub's **README**, not inside the offline converter. Loading the README may request these images from third-party servers; opening \`Index.html\` does not.
+The following services render graphics in GitHub's **README**, not inside the offline converter. Loading the README may request these images from third-party servers; opening `Index.html` does not.
 
 | Service / repository | Upstream license | README use |
 | --- | --- | --- |
