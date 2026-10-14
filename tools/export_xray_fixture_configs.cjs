@@ -44,3 +44,34 @@ for (const [name, link] of Object.entries(fixtures)) {
   fs.writeFileSync(path.join(dest, name), text + '\n');
   console.log('Generated', name);
 }
+
+
+// Upstream-derived examples with synthetic credentials: verify real Xray accepts
+// the converter's output after importing native Xray settings (not just share URIs).
+const upstream = {
+  'upstream-vless-wss.json': {
+    outbounds:[{protocol:'vless',
+      settings:{address:'edge.example.org',port:443,id:uuid,encryption:'none'},
+      streamSettings:{network:'ws',security:'tls',
+        wsSettings:{path:'/Path2WS?ed=2560'},
+        tlsSettings:{serverName:'edge.example.org',fingerprint:'chrome'}}}]
+  },
+  'upstream-vmess-wss.json': {
+    outbounds:[{protocol:'vmess',
+      settings:{address:'vmess.example.org',port:443,id:uuid,security:'auto'},
+      streamSettings:{network:'ws',security:'tls',
+        wsSettings:{path:'/vmess'},
+        tlsSettings:{serverName:'vmess.example.org',fingerprint:'chrome'}}}]
+  }
+};
+for (const [name, original] of Object.entries(upstream)) {
+  const raw = JSON.stringify(original);
+  const text = vm.runInContext(
+    'JSON.stringify(linkItemToStandaloneJsonObject({link:smartConvertRecords([smartRecognizeText(' +
+      JSON.stringify(raw) + ')],"links")}),null,2)', ctx
+  );
+  const config = JSON.parse(text);
+  if (!config.outbounds?.length) throw new Error('No translated outbound: ' + name);
+  fs.writeFileSync(path.join(dest, name), text + '\n');
+  console.log('Generated upstream-derived', name);
+}
