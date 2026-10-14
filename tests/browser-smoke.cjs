@@ -7,7 +7,8 @@ const {pathToFileURL}=require('node:url');
 const {chromium}=require('playwright');
 
 const root=path.resolve(__dirname,'..');
-const url=pathToFileURL(path.join(root,'Index.html')).href;
+const desktopUrl=pathToFileURL(path.join(root,'Index.html')).href;
+const mobileUrl=pathToFileURL(path.join(root,'mobile.html')).href;
 const images=path.join(root,'tests','screenshots');
 fs.mkdirSync(images,{recursive:true});
 const uuid='f47ac10b-58cc-4372-a567-0e02b2c3d4e5';
@@ -18,11 +19,22 @@ const wg='[Interface]\nPrivateKey = eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=
 async function run(){
   const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   try{
-    for(const dimension of [{width:1440,height:900,label:'desktop'},{width:390,height:844,label:'mobile'}]){
+    for(const dimension of [
+      {width:1440,height:900,label:'desktop',url:desktopUrl},
+      {width:390,height:844,label:'mobile',url:desktopUrl},
+      {width:390,height:844,label:'mobile-standalone',url:mobileUrl}
+    ]){
       const page=await browser.newPage({viewport:{width:dimension.width,height:dimension.height},acceptDownloads:true});
       const errors=[];
       page.on('pageerror',e=>errors.push(e.message));
-      await page.goto(url,{waitUntil:'load'});
+      await page.goto(dimension.url,{waitUntil:'load'});
+      if(dimension.label==='mobile-standalone'){
+        assert.equal(await page.locator('body.mobile-standalone').count(),1);
+        assert.equal(await page.locator('h1').innerText(),'NPVT Mobile');
+        assert.equal(await page.locator('.hero-actions').count(),0);
+        const external=await page.locator('script[src],link[rel="stylesheet"]').count();
+        assert.equal(external,0,'mobile file must run without external assets');
+      }
       assert.equal(await page.locator('#smartWorkspace').isVisible(),true);
       assert.equal(await page.locator('.workflow-nav').isVisible(),false);
       assert.equal(await page.locator('#smartDownload').isDisabled(),true);
@@ -119,7 +131,7 @@ async function run(){
       assert.equal(await page.locator('#smartDetected').innerText(),'No input yet');
       assert.equal(await page.locator('#smartOutput').inputValue(),'');
       assert.equal(await page.locator('#smartWorkspace').getAttribute('aria-busy'),'false');
-      if(dimension.label==='mobile'){
+      if(dimension.label!=='desktop'){
         const size=await page.locator('#smartInput').evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
         assert.ok(size>=16,'mobile editor must be readable without focus zoom');
       }

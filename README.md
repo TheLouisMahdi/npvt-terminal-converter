@@ -21,16 +21,19 @@
 <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/Index.html">
   <img src="https://img.shields.io/badge/DESKTOP_RAW-Index.html-00d46a?style=for-the-badge&labelColor=020704" alt="Desktop raw Index.html">
 </a>
+<a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">
+  <img src="https://img.shields.io/badge/MOBILE_SINGLE_FILE-mobile.html-80d8ad?style=for-the-badge&labelColor=020704" alt="Mobile standalone HTML">
+</a>
 <img src="https://img.shields.io/badge/Runtime-Local_Only-b8ffd2?style=for-the-badge&labelColor=020704" alt="Local only">
 <img src="https://img.shields.io/badge/Container-NPVT1-39ff88?style=for-the-badge&labelColor=020704" alt="NPVT1">
 <img src="https://img.shields.io/badge/JSON-Bidirectional-00d46a?style=for-the-badge&labelColor=020704" alt="Bidirectional JSON conversion">
 
 <h2>
-  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip">Download for mobile</a>
+  <a href="https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html">Mobile: single offline HTML</a>
 </h2>
 
 <p>
-  Mobile browsers may open raw HTML as text. Use the ZIP download above, then extract and open <code>Index.html</code> locally.
+  Mobile browsers may open raw HTML as text. If direct download is blocked, use the ZIP download, extract <code>mobile.html</code>, and open it in a browser that supports local HTML files.
 </p>
 
 </div>
@@ -41,7 +44,7 @@
 
 **NPV Tunnel NPVT Converter** is a browser-only conversion toolkit for moving configurations between NPV Tunnel `.npvt` containers, V2Ray-style share links, and Xray/V2Ray JSON profiles.
 
-The project is designed as a single portable HTML file. It does not require installation, bundling, a backend server, external APIs, or upload endpoints. All parsing, decoding, mapping, JSON generation, NPVT1 building, and file output happen locally inside the browser runtime.
+The project ships two independently portable HTML files: `Index.html` for desktop and `mobile.html` for mobile; both contain their entire HTML, CSS and JavaScript runtime. It does not require installation, bundling, a backend server, external APIs, or upload endpoints. All parsing, decoding, mapping, JSON generation, NPVT1 building, and file output happen locally inside the browser runtime.
 
 The current engine is based on real NPVT1 exports and expanded with a bidirectional JSON toolkit. It understands NPV-style profile wrappers, `v2rayProfile`, embedded `v2rayJson`, Xray/V2Ray `outbounds`, `streamSettings`, `vnext`, `servers`, WebSocket metadata, TLS/REALITY fields, and NPVT1 chunk layout.
 
@@ -98,7 +101,23 @@ Full boundaries: [Native format adapters](docs/NATIVE_FORMATS.md), [Core compati
 
 ## Download
 
-### Recommended for Android / iOS
+### Mobile (standalone `mobile.html`)
+
+[**Get mobile.html**](https://github.com/TheLouisMahdi/npvt-terminal-converter/raw/main/mobile.html) — a single file with its **HTML, CSS, JavaScript and full conversion engine embedded**, requiring no external scripts, stylesheets, backend or internet connection.
+
+Its layout is designed for narrow touchscreens: compact header, one-column conversion form, readable inputs, full-width target selector and mobile-friendly actions. The original [desktop `Index.html`](Index.html) remains unchanged.
+
+To use offline, **save** the actual `mobile.html` file, then open it with a browser/file opener that supports local HTML. Some phone file previewers display HTML as text or restrict local JavaScript/downloads; in that case use the browser-based [GitHub Pages site](https://thelouismahdi.github.io/npvt-terminal-converter/mobile.html) or an appropriate local HTML opener instead. Opening the hosted version only requires network access to initially load the page; conversion itself is local.
+
+For direct links that display HTML as text instead of downloading it, download the repository ZIP and extract only `mobile.html`:
+
+```text
+https://github.com/TheLouisMahdi/npvt-terminal-converter/archive/refs/heads/main.zip
+```
+
+**Developer sync:** `node tools/build_mobile.cjs` rebuilds `mobile.html` from the desktop converter without splitting its runtime files. `node tools/build_mobile.cjs --check` verifies that the committed mobile file matches the shared engine; CI checks this on every pull request.
+
+### Repository ZIP for Android / iOS
 
 Download the repository ZIP. This forces a real file download on mobile browsers:
 
@@ -110,8 +129,8 @@ After download:
 
 1. Extract the ZIP file.
 2. Open the extracted folder.
-3. Tap `Index.html`.
-4. Use the converter locally in your browser.
+3. Tap `mobile.html` (or use `Index.html` for desktop).
+4. Use the converter locally in a browser that can open local HTML files.
 
 ### Direct HTML Link
 
@@ -645,11 +664,12 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 
 ```text
 .
-├── Index.html                 # Offline single-file browser app
+├── Index.html                 # Original desktop offline single-file app
+├── mobile.html                # Generated standalone, touch-optimized mobile app
 ├── README.md                  # Product features and use
 ├── LICENSE
 ├── docs/                      # Compatibility and native adapter guides
-├── tools/                     # CI fixture exporters and release watcher
+├── tools/                     # Mobile builder, CI fixture exporters and release watcher
 ├── tests/                     # Node and Chromium tests
 ├── .github/workflows/         # Core and browser quality gates
 └── assets/Prev.png            # README preview
