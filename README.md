@@ -657,6 +657,88 @@ Sensitive fields such as UUIDs, passwords, SNI values, REALITY public keys, serv
 
 ---
 
+## Sources, repositories, licenses, and acknowledgements
+
+This inventory records the **upstream projects and specifications consulted, monitored, or used for testing**. Repository license identifiers were checked against their public upstream repositories on **October 14, 2026**. Consult each upstream's current `LICENSE`, notices, and asset terms before redistributing any of its code.
+
+### Licensing scope
+
+- **This repository:** [MIT License](LICENSE), copyright © 2026 Mahdi Gh. This is the license declared for the NPVT Terminal Converter project; it does not override third-party copyrights or licenses.
+- **Distributed converter:** [`Index.html`](Index.html) is one self-contained offline HTML/CSS/JavaScript application. It **does not import third-party JavaScript packages**, ship the proxy cores listed below, or require Node.js, Python, Docker or Playwright at runtime.
+- **Upstream source code:** The projects below provide specifications, comparative references, sample configuration structures, and/or external CI validators. Listing a repository does **not** mean that its source code is bundled, that its license changes this project's MIT license, or that the upstream authors endorse this converter.
+- **Sample configurations:** [upstream-derived regression tests](tests/upstream-configs.test.cjs) use synthetic credentials and example hosts, modeled on documented formats. The [Xray examples](https://github.com/XTLS/Xray-examples) repository is **CC-BY-SA-4.0** and is attributed below. Any future verbatim reuse or adaptation of licensed examples or code must separately satisfy its terms.
+- **Provenance limit:** This list is an inventory of identifiable references and tooling, **not an independent line-by-line copyright audit** of historical embedded code or locally stored images. No permission to copy code from an unlicensed or restrictively licensed reference is implied.
+
+### Official protocol implementations monitored for compatibility
+
+These are the exact **14 repositories** referenced by [`tools/protocol_watch.py`](tools/protocol_watch.py). They are monitored for upstream version changes; none is automatically downloaded into the browser app.
+
+| Repository | Upstream license (as identified) | Role |
+| --- | --- | --- |
+| [XTLS/Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | VLESS, REALITY, XHTTP, Xray JSON; external CI validator |
+| [v2fly/v2ray-core](https://github.com/v2fly/v2ray-core) | MIT | V2Ray / VMess format reference |
+| [amnezia-vpn/amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | AmneziaWG protocol reference |
+| [klzgrad/naiveproxy](https://github.com/klzgrad/naiveproxy) | BSD-3-Clause | Protocol compatibility watch; no implemented NaiveProxy adapter |
+| [enfein/mieru](https://github.com/enfein/mieru) | GPL-3.0 | Mieru native-format reference |
+| [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional naming/association notice in its [LICENSE](https://github.com/SagerNet/sing-box/blob/testing/LICENSE) | Native JSON format and external CI validator |
+| [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | MIT | Mihomo / Clash schema and external CI validator |
+| [HyNetworks/hysteria](https://github.com/HyNetworks/hysteria) | MIT | Hysteria2 URI, Gecko and Realm reference |
+| [anytls/anytls-go](https://github.com/anytls/anytls-go) | **Not established:** no top-level license detected | AnyTLS protocol and [URI specification](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md); do not assume reuse permission |
+| [tuic-protocol/tuic](https://github.com/tuic-protocol/tuic) | GPL-3.0 | TUIC protocol reference |
+| [ihciah/shadow-tls](https://github.com/ihciah/shadow-tls) | MIT | ShadowTLS compatibility watch |
+| [TrustTunnel/TrustTunnel](https://github.com/TrustTunnel/TrustTunnel) | Apache-2.0 | TrustTunnel [deep-link format](https://github.com/TrustTunnel/TrustTunnel/blob/master/DEEP_LINK.md) |
+| [juicity/juicity](https://github.com/juicity/juicity) | AGPL-3.0 | Compatibility watch; no implemented Juicity adapter |
+| [shadowsocks/shadowsocks-rust](https://github.com/shadowsocks/shadowsocks-rust) | MIT | Shadowsocks / SS2022 implementation reference |
+
+### Additional specifications, example repositories, and converter research
+
+These repositories are separately cited in documentation and tests; they are **references**, not browser dependencies.
+
+| Repository / reference | Upstream license (as identified) | Use in this project |
+| --- | --- | --- |
+| [XTLS/Xray-examples](https://github.com/XTLS/Xray-examples) | CC-BY-SA-4.0 | Upstream configuration structure and attribution for [synthetic test cases](tests/upstream-configs.test.cjs) |
+| [shadowsocks/shadowsocks-org](https://github.com/shadowsocks/shadowsocks-org) | MIT | [SIP002 share URI](https://shadowsocks.org/doc/sip002.html) and Shadowsocks specifications |
+| [2dust/v2rayN](https://github.com/2dust/v2rayN) | GPL-3.0 | [VMess share-link field reference](https://github.com/2dust/v2rayN/wiki/Description-of-VMess-share-link) |
+| [sub-store-org/Sub-Store](https://github.com/sub-store-org/Sub-Store) | AGPL-3.0 | Subscription and output-format compatibility research; no upstream code included |
+| [lonelam/subconverter-rs](https://github.com/lonelam/subconverter-rs) | GPL-3.0 | Comparison of subscription conversion capabilities and limitations |
+| [cnfatal/subscription-converter](https://github.com/cnfatal/subscription-converter) | **Not established:** no top-level license detected | Conversion matrix comparison only; do not assume reuse permission |
+| [FrontierTM/Pantegnos](https://github.com/FrontierTM/Pantegnos) | AGPL-3.0 | Research reference for NetMod / proprietary container families; no upstream code or assets included |
+
+Key **official format documentation** used when developing the adapters: [Xray VLESS](https://xtls.github.io/en/config/outbounds/vless.html), [Xray XHTTP](https://xtls.github.io/en/config/transports/xhttp.html), [sing-box outbounds](https://sing-box.sagernet.org/configuration/outbound/), [sing-box TLS/ECH](https://sing-box.sagernet.org/configuration/shared/tls/), [Hysteria2 URI](https://v2.hysteria.network/docs/developers/URI-Scheme/), [WireGuard quick start](https://www.wireguard.com/quickstart/), [Shadowsocks SIP002](https://shadowsocks.org/doc/sip002.html), and [TrustTunnel deep links](https://github.com/TrustTunnel/TrustTunnel/blob/master/DEEP_LINK.md). Other precise references appear alongside the associated implementation notes in [native formats](docs/NATIVE_FORMATS.md), [format matrix](docs/SMART_FORMAT_MATRIX.md), and [core compatibility](docs/CORE_COMPAT_2026_Q3.md).
+
+### Development and test-only tools
+
+The live converter needs **none** of these; GitHub Actions invokes them to test code and generated configurations.
+
+| Project / repository | License or notice | Role |
+| --- | --- | --- |
+| [Node.js](https://github.com/nodejs/node) | [Node.js license and bundled third-party notices](https://github.com/nodejs/node/blob/main/LICENSE) (multiple terms) | Runs local JavaScript tests and fixture generators in CI |
+| [Python / CPython](https://github.com/python/cpython) | [Python license and bundled notices](https://github.com/python/cpython/blob/main/LICENSE) (multiple terms) | Standard-library-only release watcher and its tests |
+| [Microsoft Playwright](https://github.com/microsoft/playwright) | Apache-2.0 | Test-only Chromium desktop/mobile automation |
+| [actions/checkout](https://github.com/actions/checkout) | MIT | GitHub Actions repository checkout |
+| [actions/setup-node](https://github.com/actions/setup-node) | MIT | GitHub Actions Node.js setup |
+| [actions/setup-python](https://github.com/actions/setup-python) | MIT | GitHub Actions Python setup |
+| [actions/upload-artifact](https://github.com/actions/upload-artifact) | MIT | Stores temporary browser test screenshots |
+| [Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | External, version-pinned Docker validator (`run -test`) |
+| [sing-box](https://github.com/SagerNet/sing-box) | See upstream GPL license and additional notice above | External, version-pinned Docker validator (`check`) |
+| [Mihomo](https://github.com/MetaCubeX/mihomo) | MIT | External, version-pinned Docker validator (`-t`) |
+
+Check the exact versions and image digests in [the CI workflows](.github/workflows/) rather than treating this table as a lockfile.
+
+### README artwork and badges (documentation only)
+
+The following services render graphics in GitHub's **README**, not inside the offline converter. Loading the README may request these images from third-party servers; opening `Index.html` does not.
+
+| Service / repository | Upstream license | README use |
+| --- | --- | --- |
+| [kyechan99/capsule-render](https://github.com/kyechan99/capsule-render) | MIT | Remote animated header/footer waves |
+| [DenverCoder1/readme-typing-svg](https://github.com/DenverCoder1/readme-typing-svg) | MIT | Remote animated typing text |
+| [badges/shields](https://github.com/badges/shields) | Apache-2.0 | Remote download/status badges |
+
+Locally stored [preview PNG](assets/Prev.png) and [SVG](assets/readme-preview.svg) remain within this repository; their original creation history and any third-party visual rights have **not** been independently verified here. Do not assume that a reference project's license automatically licenses its trademarks, screenshots, logos or artwork.
+
+---
+
 ## Technical References
 
 - [NPV Tunnel on Google Play](https://play.google.com/store/apps/details?id=com.napsternetlabs.napsternetv)
@@ -709,4 +791,4 @@ Use it only with configuration files and links that you own or are authorized to
 
 ## License
 
-MIT License
+[MIT License](LICENSE). Third-party references, tools and media retain their respective upstream terms; see [Sources, repositories, licenses, and acknowledgements](#sources-repositories-licenses-and-acknowledgements).
