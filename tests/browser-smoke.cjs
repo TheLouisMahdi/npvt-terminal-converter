@@ -38,6 +38,12 @@ async function run(){
       }
       await paste(vless);
       await waitSource('proxy share link');
+      assert.equal(await page.locator('#smartTarget').inputValue(),'xray','default export should be an actual conversion');
+      assert.equal(await page.locator('#smartWorkspace').getAttribute('aria-busy'),'false');
+      await page.locator('#smartInput').press('End');
+      await page.locator('#smartInput').press('Enter');
+      assert.ok((await page.locator('#smartInput').inputValue()).endsWith('\n'),'Enter must insert newline in editor');
+      await waitSource('proxy share link');
       assert.ok((await available()).includes('npvt'));
       assert.ok((await available()).includes('xray'));
       assert.ok(!(await available()).includes('singbox'));
@@ -55,6 +61,7 @@ async function run(){
       assert.ok(!(await available()).includes('xray'));
       await page.locator('#smartTarget').selectOption('mihomoYaml');
       assert.match(await page.locator('#smartOutput').inputValue(),/wireguard/);
+      assert.equal(await page.locator('#smartFiles').inputValue(),'','file picker must reset after import');
       const download=page.waitForEvent('download');
       await page.locator('#smartDownload').click();
       assert.match((await download).suggestedFilename(),/\.yaml$/);
@@ -85,6 +92,38 @@ async function run(){
       assert.ok(!(await available()).includes('npvt'));
       await page.locator('#smartTarget').selectOption('links');
       assert.match(await page.locator('#smartOutput').inputValue(),/hy2:\/\//);
+      // Capture the converted state as well as the empty state.
+      await page.screenshot({path:path.join(images,'populated-'+dimension.label+'.png'),fullPage:true,animations:'disabled'});
+      const fixture=Buffer.from(vless);
+      await page.locator('#smartFiles').setInputFiles(Array.from({length:6},(_,i)=>({
+        name:'config-'+i+'.txt',mimeType:'text/plain',buffer:fixture
+      })));
+      await page.waitForFunction(()=>document.getElementById('smartDetected').textContent.includes('+2 more'),null,{timeout:10000});
+      assert.equal(await page.locator('#smartDetectedMore').isVisible(),true);
+      await page.locator('#smartDetectedMore summary').click();
+      assert.ok((await page.locator('#smartDetectedAll').innerText()).includes('config-5.txt'));
+      await page.locator('#smartFiles').setInputFiles({name:'again.txt',mimeType:'text/plain',buffer:fixture});
+      await waitSource('proxy share link');
+      assert.equal(await page.locator('#smartFiles').inputValue(),'');
+      // A slow import that completes after Clear must not restore results.
+      await page.evaluate(()=>{
+        const original=File.prototype.arrayBuffer;
+        File.prototype.arrayBuffer=function(){
+          return new Promise((resolve,reject)=>
+            setTimeout(()=>original.call(this).then(resolve,reject),350));
+        };
+      });
+      await page.locator('#smartFiles').setInputFiles({name:'slow.txt',mimeType:'text/plain',buffer:fixture});
+      await page.locator('#smartReset').click();
+      await page.waitForTimeout(550);
+      assert.equal(await page.locator('#smartDetected').innerText(),'No input yet');
+      assert.equal(await page.locator('#smartOutput').inputValue(),'');
+      assert.equal(await page.locator('#smartWorkspace').getAttribute('aria-busy'),'false');
+      if(dimension.label==='mobile'){
+        const size=await page.locator('#smartInput').evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+        assert.ok(size>=16,'mobile editor must be readable without focus zoom');
+      }
+      await page.screenshot({path:path.join(images,'empty-'+dimension.label+'.png'),fullPage:true,animations:'disabled'});
       await page.locator('#smartReset').click();
       assert.equal(await page.locator('#smartTarget').isDisabled(),true);
       assert.equal(await page.locator('#smartOutput').inputValue(),'');
