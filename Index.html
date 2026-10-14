@@ -850,6 +850,7 @@ function parseStandardShare(link){
     host: firstValue(q.host, q.requestHost),
     path: firstValue(q.path, url.pathname && url.pathname !== '/' ? url.pathname : ''),
     serviceName: firstValue(q.serviceName, q.grpcServiceName),
+    authority: firstValue(q.authority),
     security: parsedSecurity,
     sni: firstValue(q.sni, q.peer, q.serverName),
     alpn: firstValue(q.alpn),

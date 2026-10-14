@@ -25,6 +25,20 @@ function json(expression) {
   return JSON.parse(run(`JSON.stringify(${expression})`));
 }
 
+test('VLESS gRPC authority survives URI to Xray JSON and back', () => {
+  const link = 'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@edge.example:443?encryption=none&security=tls&type=grpc&serviceName=tunnel&authority=grpc.example#Node';
+  const config = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(link)}})`);
+  assert.equal(config.outbounds[0].streamSettings.grpcSettings.serviceName, 'tunnel');
+  assert.equal(config.outbounds[0].streamSettings.grpcSettings.authority, 'grpc.example');
+
+  const result = json(`convertJSONToLinks(${JSON.stringify(config)})`);
+  assert.equal(result.errors.length, 0, result.errors.join('; '));
+  assert.equal(result.links.length, 1);
+  const uri = new URL(result.links[0].link);
+  assert.equal(uri.searchParams.get('authority'), 'grpc.example');
+  assert.equal(uri.searchParams.get('serviceName'), 'tunnel');
+});
+
 test('AnyTLS URI parses password, IPv6 host, SNI and insecure', () => {
   const parsed = json("parseAnytlsShare('anytls://my%40secret@[2001:db8::1]:8443/?sni=cdn.example&insecure=1#Node')");
   assert.equal(parsed.outbound.type, 'anytls');
