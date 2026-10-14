@@ -2126,7 +2126,7 @@ function profileToLink(p, fallbackName='') {
     if (n.alpn) addParam(q, 'alpn', n.alpn);
     if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
-    return `trojan://${enc(n.id)}@${n.host}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
+    return `trojan://${enc(n.id)}@${formatUriHost(n.host)}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
   if (protocol === 'ss') {
     const method = n.method && n.method !== 'none' ? n.method : 'aes-128-gcm';
@@ -2136,7 +2136,7 @@ function profileToLink(p, fallbackName='') {
   }
   if (protocol === 'socks') {
     const auth = n.username && n.password ? `${enc(n.username)}:${enc(n.password)}@` : '';
-    return `socks://${auth}${n.host}:${n.port}#${tag}`;
+    return `socks://${auth}${formatUriHost(n.host)}:${n.port}#${tag}`;
   }
   throw new Error('unknown protocol');
 }
