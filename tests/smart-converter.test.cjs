@@ -16,6 +16,24 @@ const vless='vless://'+uuid+'@example.org:443?type=ws&security=tls&encryption=no
 const hy2='hy2://secret@h.example:443?sni=h.example#HY2';
 const wg='[Interface]\nPrivateKey = eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=\nAddress = 10.3.0.2/32\n\n[Peer]\nPublicKey = Cr8hWlKvtDt7nrvf+f0brNQQzabAqrjfBvas9pmowjo=\nEndpoint = example.org:51820\nAllowedIPs = 0.0.0.0/0';
 function val(x){return JSON.parse(JSON.stringify(x));}
+test('Advanced native Xray transport or TLS options block lossy links',()=>{
+ const basic={protocol:'vless',settings:{vnext:[{address:'edge.example',port:443,users:[{id:uuid,encryption:'none'}]}]},
+   streamSettings:{network:'ws',security:'tls',wsSettings:{path:'/ws'},tlsSettings:{serverName:'edge.example'}}};
+ const good=call('smartAvailable',[call('smartRecognizeText',JSON.stringify({outbounds:[basic]}))]);
+ assert.ok(good.links.includes('vless://'));
+ const advanced=JSON.parse(JSON.stringify(basic));
+ advanced.streamSettings.tlsSettings.minVersion='1.3';
+ const detected=call('smartRecognizeText',JSON.stringify({outbounds:[advanced]}));
+ const blocked=call('smartAvailable',[detected]);
+ assert.equal(blocked.links,undefined);
+ assert.equal(blocked.subscription,undefined);
+ assert.equal(blocked.xray.includes('minVersion'),true);
+ const extraHeader=JSON.parse(JSON.stringify(basic));
+ extraHeader.streamSettings.wsSettings.headers={Host:'front.example','X-Custom':'must-not-drop'};
+ const dropped=call('smartAvailable',[call('smartRecognizeText',JSON.stringify({outbounds:[extraHeader]}))]);
+ assert.equal(dropped.links,undefined);
+});
+
 test('Detect VLESS share links and offer only verified output targets',()=>{
  const r=call('smartRecognizeText',vless);
  assert.equal(r.kind,'links');
