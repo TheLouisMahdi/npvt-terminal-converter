@@ -1708,17 +1708,18 @@ function outboundToProfiles(outbound, inheritedName='') {
     }
   }
 
-  // Xray 2026 supports direct fields in VLESS settings in addition to legacy vnext.
-  if (protocol === 'vless' && !Array.isArray(settings.vnext) &&
+  // Xray also accepts direct address/port/id settings alongside legacy vnext.
+  if ((protocol === 'vless' || protocol === 'vmess') && !Array.isArray(settings.vnext) &&
       settings.address && settings.port && settings.id) {
     profiles.push({
       ...common,
-      protocol: 'vless',
+      protocol,
       name: baseName,
       server: settings.address,
       serverPort: settings.port,
       id: settings.id,
-      method: firstValue(settings.encryption, 'none'),
+      method: protocol === 'vless' ? firstValue(settings.encryption, 'none') : firstValue(settings.security, 'auto'),
+      alterId: protocol === 'vmess' ? firstValue(settings.alterId, '0') : '0',
       flow: firstValue(settings.flow),
       _sourceStreamSettings: outbound.streamSettings
     });
