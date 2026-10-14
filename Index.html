@@ -823,7 +823,9 @@ function parseVmessShare(link){
     sni: firstValue(obj.sni, obj.peer),
     alpn: firstValue(obj.alpn),
     fingerPrint: firstValue(obj.fp, obj.fingerprint),
-    insecure: truthyParam(obj.allowInsecure || obj.insecure)
+    insecure: truthyParam(firstValue(obj.allowInsecure, obj.insecure)),
+    verifyPeerCertByName: firstValue(obj.vcn),
+    pinnedPeerCertSha256: firstValue(obj.pcs)
   };
 }
 function parseStandardShare(link){
@@ -837,7 +839,7 @@ function parseStandardShare(link){
   if (!parsedSecurity && proto === 'trojan') parsedSecurity = 'tls';
   const parsedNetwork = firstValue(q.type, q.net, q.network, 'tcp');
   const hasInsecure = url.searchParams.has('allowInsecure') || url.searchParams.has('insecure');
-  const insecureDefault = String(parsedSecurity).toLowerCase() === 'reality' || (String(parsedNetwork).toLowerCase() === 'grpc' && !parsedSecurity);
+  const insecureDefault = false;
   const common = {
     protocol: proto,
     name,
@@ -851,6 +853,8 @@ function parseStandardShare(link){
     path: firstValue(q.path, url.pathname && url.pathname !== '/' ? url.pathname : ''),
     serviceName: firstValue(q.serviceName, q.grpcServiceName),
     authority: firstValue(q.authority),
+    pinnedPeerCertSha256: firstValue(q.pcs),
+    verifyPeerCertByName: firstValue(q.vcn),
     security: parsedSecurity,
     sni: firstValue(q.sni, q.peer, q.serverName),
     alpn: firstValue(q.alpn),
@@ -1280,8 +1284,19 @@ function buildXrayStreamSettings(p){
   const network = normalizeNetworkId(firstValue(p.network, 'tcp'));
   const security = firstValue(p.security, 'none') || 'none';
   const stream = {network, security};
+  if ((security === 'tls' || security === 'reality') && p.insecure) {
+    throw new Error('Xray 26+ removed allowInsecure; use verified TLS or valid pcs/vcn settings');
+  }
   if (security === 'tls') {
-    const tls = {allowInsecure: !!p.insecure};
+    const tls = {allowInsecure: false};
+    if (p.pinnedPeerCertSha256) {
+      const pins = String(p.pinnedPeerCertSha256).split(',').map(x => x.trim()).filter(Boolean);
+      if (!pins.length || pins.some(x => !/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(x))) {
+        throw new Error('Invalid TLS pcs: expected SHA-256 hex certificate fingerprint');
+      }
+      tls.pinnedPeerCertSha256 = pins.join(',');
+    }
+    if (p.verifyPeerCertByName) tls.verifyPeerCertByName = String(p.verifyPeerCertByName);
     if (p.sni) tls.serverName = p.sni;
     const alpn = alpnList(p.alpn);
     if (alpn.length) tls.alpn = alpn;
@@ -1290,7 +1305,7 @@ function buildXrayStreamSettings(p){
     stream.tlsSettings = tls;
   }
   if (security === 'reality') {
-    const reality = {allowInsecure: p.insecure !== undefined ? !!p.insecure : true};
+    const reality = {allowInsecure: false};
     if (p.sni) reality.serverName = p.sni;
     if (p.fingerPrint) reality.fingerprint = p.fingerPrint;
     reality.show = false;
@@ -1656,7 +1671,9 @@ function streamSettingsToProfile(stream={}) {
     xhttpExtra: xhttp.extra && typeof xhttp.extra === 'object' ? xhttp.extra : null,
     serviceName: firstValue(grpc.serviceName),
     authority: firstValue(grpc.authority),
-    insecure: !!firstValue(tls.allowInsecure, reality.allowInsecure, stream.allowInsecure)
+    insecure: truthyParam(firstValue(tls.allowInsecure, reality.allowInsecure, stream.allowInsecure)),
+    pinnedPeerCertSha256: firstValue(tls.pinnedPeerCertSha256),
+    verifyPeerCertByName: firstValue(tls.verifyPeerCertByName)
   };
 }
 
@@ -1892,7 +1909,9 @@ function normalizedProfile(p, fallbackName='') {
     shortId: firstValue(p.shortId, p.shortIds, p.sid, streamLike.shortId),
     spiderX: firstValue(p.spiderX, p.spx, streamLike.spiderX),
     alpn: firstValue(p.alpn, streamLike.alpn),
-    insecure: !!firstValue(p.insecure, p.allowInsecure, streamLike.insecure),
+    insecure: truthyParam(firstValue(p.insecure, p.allowInsecure, streamLike.insecure)),
+    pinnedPeerCertSha256: firstValue(p.pinnedPeerCertSha256, p.pcs, streamLike.pinnedPeerCertSha256),
+    verifyPeerCertByName: firstValue(p.verifyPeerCertByName, p.vcn, streamLike.verifyPeerCertByName),
     configType: p.configType,
     protocol: firstValue(p.protocol, p.configProtocol, p.outboundProtocol)
   };
@@ -2091,6 +2110,8 @@ function profileToLink(p, fallbackName='') {
     if (n.serviceName || n.network === 'grpc') addParam(q, 'serviceName', n.serviceName);
     if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
+    if (n.pinnedPeerCertSha256) addParam(q, 'pcs', n.pinnedPeerCertSha256);
+    if (n.verifyPeerCertByName) addParam(q, 'vcn', n.verifyPeerCertByName);
     return `vless://${enc(n.id)}@${formatUriHost(n.host)}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
   if (protocol === 'vmess') {
@@ -2110,8 +2131,11 @@ function profileToLink(p, fallbackName='') {
       tls: n.security && n.security !== 'none' ? n.security : '',
       sni: n.sni || '',
       fp: n.fp || '',
-      alpn: n.alpn || ''
+      alpn: n.alpn || '',
+      insecure: n.insecure ? '1' : '0'
     };
+    if (n.pinnedPeerCertSha256) obj.pcs = n.pinnedPeerCertSha256;
+    if (n.verifyPeerCertByName) obj.vcn = n.verifyPeerCertByName;
     return `vmess://${base64Utf8(JSON.stringify(obj))}`;
   }
   if (protocol === 'trojan') {
@@ -2126,6 +2150,8 @@ function profileToLink(p, fallbackName='') {
     if (n.alpn) addParam(q, 'alpn', n.alpn);
     if (n.authority && n.network === 'grpc') addParam(q, 'authority', n.authority);
     if (n.insecure) addParam(q, 'allowInsecure', '1');
+    if (n.pinnedPeerCertSha256) addParam(q, 'pcs', n.pinnedPeerCertSha256);
+    if (n.verifyPeerCertByName) addParam(q, 'vcn', n.verifyPeerCertByName);
     return `trojan://${enc(n.id)}@${formatUriHost(n.host)}:${n.port}${q.length ? '?' + q.join('&') : ''}#${tag}`;
   }
   if (protocol === 'ss') {
@@ -3852,7 +3878,7 @@ function smartMihomoNodeFromLink(link){
     throw new Error('Shadowsocks plugins need explicit native fields');
   if(proto==='vmess'){
     const raw=JSON.parse(bytesToText(b64ToBytes(link.slice(8))));
-    const allowed=new Set(['v','ps','add','port','id','aid','scy','net','type','host','path','tls','sni','fp','alpn']);
+    const allowed=new Set(['v','ps','add','port','id','aid','scy','net','type','host','path','tls','sni','fp','alpn','insecure','allowInsecure']);
     for(const key of Object.keys(raw))if(!allowed.has(key))throw new Error('Unmappable VMess field '+key);
     if(raw.type&&raw.type!=='none')throw new Error('Nonstandard VMess headers need native JSON');
   }else if(proto!=='ss'){
