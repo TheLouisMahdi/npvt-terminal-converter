@@ -39,6 +39,19 @@ test('VLESS gRPC authority survives URI to Xray JSON and back', () => {
   assert.equal(uri.searchParams.get('serviceName'), 'tunnel');
 });
 
+test('Trojan and SOCKS IPv6 share links use bracketed authorities', () => {
+  const host = '2001:db8::9';
+  const trojan = run(`profileToLink(${JSON.stringify({protocol:'trojan',server:host,serverPort:443,password:'p@ss',security:'tls',name:'IPv6'})})`);
+  const socks = run(`profileToLink(${JSON.stringify({protocol:'socks',server:host,serverPort:1080,username:'alice',password:'secret',name:'IPv6'})})`);
+  assert.equal(new URL(trojan).hostname, '[2001:db8::9]');
+  assert.equal(new URL(socks).hostname, '[2001:db8::9]');
+  const trojanJson = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(trojan)}})`);
+  const socksJson = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(socks)}})`);
+  assert.equal(trojanJson.outbounds[0].settings.servers[0].address, host);
+  assert.equal(socksJson.outbounds[0].settings.servers[0].address, host);
+  assert.equal(socksJson.outbounds[0].settings.servers[0].users[0].user, 'alice');
+});
+
 test('AnyTLS URI parses password, IPv6 host, SNI and insecure', () => {
   const parsed = json("parseAnytlsShare('anytls://my%40secret@[2001:db8::1]:8443/?sni=cdn.example&insecure=1#Node')");
   assert.equal(parsed.outbound.type, 'anytls');
