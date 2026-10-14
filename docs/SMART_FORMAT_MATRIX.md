@@ -26,6 +26,20 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 
 For **VLESS, VMess, Trojan, Shadowsocks**, TCP and simple WebSocket plus TLS fields can now be converted to/from a Mihomo native node. This is a deliberately strict subset: unsupported options (including XHTTP, plugin-specific Shadowsocks options, advanced WebSocket headers and unknown source properties) are rejected instead of dropped. The resulting URI-to-native VLESS sample is validated by the pinned official Mihomo Core in CI.
 
+## Protocol correctness updates (October 14, 2026)
+
+- Trojan and SOCKS share URIs now bracket IPv6 literals so standard URL parsers recover the original address.
+- VLESS, Trojan and VMess links preserve Xray TLS `pcs` (SHA-256 certificate pin) and `vcn` (certificate verification names) through supported JSON conversions. VMess's `insecure` property is retained in VMess share links.
+- Xray JSON generation rejects `insecure=1`/`allowInsecure=1` rather than creating a configuration rejected by current Xray releases. It does **not** silently upgrade insecure links or invent certificate pins. Invalid `pcs` fingerprints are rejected.
+- REALITY links no longer default to `allowInsecure=true` when the source omits that option.
+- In the smart workspace, unsupported Xray transport/TLS/REALITY/WS/gRPC options prevent link/subscription export instead of being discarded; original native JSON remains available.
+- When a native JSON cannot be safely exported as a link, the smart workspace reports why. Oversized batch archives are skipped before allocating a huge JSON result.
+
+Compatibility references:
+- [Xray TLS config fields](https://github.com/XTLS/Xray-core/blob/main/infra/conf/transport_internet.go)
+- [VMess share-link fields (v2rayN)](https://github.com/2dust/v2rayN/wiki/Description-of-VMess-share-link)
+- [Xray VLESS/VMessAEAD link specification](https://github.com/XTLS/Xray-core/discussions/716)
+
 ## Batch mode
 
 - Multiple URI and subscription files are combined into a link list or Base64 subscription.

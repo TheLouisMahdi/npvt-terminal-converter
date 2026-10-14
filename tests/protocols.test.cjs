@@ -39,6 +39,72 @@ test('VLESS gRPC authority survives URI to Xray JSON and back', () => {
   assert.equal(uri.searchParams.get('serviceName'), 'tunnel');
 });
 
+test('Trojan and SOCKS IPv6 share links use bracketed authorities', () => {
+  const host = '2001:db8::9';
+  const trojan = run(`profileToLink(${JSON.stringify({protocol:'trojan',server:host,serverPort:443,password:'p@ss',security:'tls',name:'IPv6'})})`);
+  const socks = run(`profileToLink(${JSON.stringify({protocol:'socks',server:host,serverPort:1080,username:'alice',password:'secret',name:'IPv6'})})`);
+  assert.equal(new URL(trojan).hostname, '[2001:db8::9]');
+  assert.equal(new URL(socks).hostname, '[2001:db8::9]');
+  const trojanJson = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(trojan)}})`);
+  const socksJson = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(socks)}})`);
+  assert.equal(trojanJson.outbounds[0].settings.servers[0].address, host);
+  assert.equal(socksJson.outbounds[0].settings.servers[0].address, host);
+  assert.equal(socksJson.outbounds[0].settings.servers[0].users[0].user, 'alice');
+});
+
+test('VMess vcn/pcs and secure TLS survive Xray JSON round-trip', () => {
+  const pin = 'ab'.repeat(32);
+  const source = {
+    v:'2',ps:'Pinned',add:'edge.example',port:'443',
+    id:'f47ac10b-58cc-4372-a567-0e02b2c3d4e5',aid:'0',net:'ws',
+    path:'/ws',tls:'tls',sni:'edge.example',insecure:'0',pcs:pin,vcn:'cert.example'
+  };
+  const link = 'vmess://' + Buffer.from(JSON.stringify(source)).toString('base64');
+  const config = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(link)}})`);
+  const tls = config.outbounds[0].streamSettings.tlsSettings;
+  assert.equal(tls.allowInsecure, false);
+  assert.equal(tls.pinnedPeerCertSha256, pin);
+  assert.equal(tls.verifyPeerCertByName, 'cert.example');
+  const out = json(`convertJSONToLinks(${JSON.stringify(config)})`);
+  assert.equal(out.errors.length, 0, out.errors.join('; '));
+  const decoded = JSON.parse(Buffer.from(out.links[0].link.slice(8), 'base64').toString('utf8'));
+  assert.equal(decoded.pcs, pin);
+  assert.equal(decoded.vcn, 'cert.example');
+  assert.equal(decoded.insecure, '0');
+});
+
+test('VLESS TLS pins and verification name round-trip without losing security', () => {
+  const pin = 'cd'.repeat(32);
+  const link = 'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@edge.example:443?type=ws&security=tls&encryption=none&pcs=' + pin + '&vcn=cert.example';
+  const jsonConfig = json(`linkItemToStandaloneJsonObject({link:${JSON.stringify(link)}})`);
+  const tls = jsonConfig.outbounds[0].streamSettings.tlsSettings;
+  assert.equal(tls.pinnedPeerCertSha256, pin);
+  assert.equal(tls.verifyPeerCertByName, 'cert.example');
+  const out = json(`convertJSONToLinks(${JSON.stringify(jsonConfig)})`);
+  assert.equal(out.errors.length, 0, out.errors.join('; '));
+  assert.equal(new URL(out.links[0].link).searchParams.get('pcs'), pin);
+  assert.equal(new URL(out.links[0].link).searchParams.get('vcn'), 'cert.example');
+});
+
+test('Removed insecure TLS option fails closed for Xray without changing user intent', () => {
+  const vmess = {v:'2',ps:'Legacy',add:'edge.example',port:'443',id:'f47ac10b-58cc-4372-a567-0e02b2c3d4e5',aid:'0',tls:'tls',insecure:'1'};
+  const link = 'vmess://' + Buffer.from(JSON.stringify(vmess)).toString('base64');
+  assert.throws(
+    () => run(`linkItemToStandaloneJsonObject({link:${JSON.stringify(link)}})`),
+    /removed allowInsecure/
+  );
+  assert.throws(
+    () => run("linkItemToStandaloneJsonObject({link:'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@edge.example:443?security=tls&allowInsecure=1'})"),
+    /removed allowInsecure/
+  );
+  assert.throws(
+    () => run("linkItemToStandaloneJsonObject({link:'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@edge.example:443?security=tls&pcs=invalid'})"),
+    /Invalid TLS pcs/
+  );
+  const safeReality = json("linkItemToStandaloneJsonObject({link:'vless://f47ac10b-58cc-4372-a567-0e02b2c3d4e5@edge.example:443?security=reality&pbk=key&sid=00&fp=chrome'})");
+  assert.equal(safeReality.outbounds[0].streamSettings.realitySettings.allowInsecure, false);
+});
+
 test('AnyTLS URI parses password, IPv6 host, SNI and insecure', () => {
   const parsed = json("parseAnytlsShare('anytls://my%40secret@[2001:db8::1]:8443/?sni=cdn.example&insecure=1#Node')");
   assert.equal(parsed.outbound.type, 'anytls');
