@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NPVT | Download offline HTML</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark;background:#07110d;color:#ebf5ee}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at top,rgba(128,216,173,.10),transparent 55%),#07110d}
+main{width:min(100%,500px);background:#102019;border:1px solid rgba(128,216,173,.25);border-radius:22px;padding:clamp(20px,5vw,30px)}
+h1{font-size:clamp(22px,5vw,28px);margin:0 0 10px}
+p{color:#a8bdaf;line-height:1.65;margin:0 0 16px}
+.actions{display:grid;gap:10px;margin:20px 0}
+a.file{display:block;text-align:center;padding:15px;border:1px solid rgba(128,216,173,.35);border-radius:14px;background:#1b3227;color:#e8f7ee;text-decoration:none;font-weight:650}
+a.file:focus-visible,a.file:hover{outline:2px solid #80d8ad;outline-offset:2px}
+a.file.primary{background:#80d8ad;color:#08120d}
+.note{font-size:13px}
+small{display:block;color:#a8bdaf;line-height:1.7;margin-top:18px}
+small a{color:#bce6ce}
+</style>
+</head>
+<body>
+<main>
+<h1>Download NPVT</h1>
+<p id="message">Choose one standalone offline HTML file. Each includes its own HTML, CSS and JavaScript.</p>
+<div class="actions">
+<a class="file primary" id="mobileDownload" href="./mobile.html" download="mobile.html">Download mobile.html · Android / iOS</a>
+<a class="file" id="desktopDownload" href="./Index.html" download="Index.html">Download Index.html · Windows / Desktop</a>
+</div>
+<p class="note" id="status" role="status" aria-live="polite">If your browser does not start the download, tap the matching button above.</p>
+<small>Want to use it online instead? <a href="./mobile.html">Open mobile panel</a> · <a href="./Index.html">Open desktop panel</a>. All conversions run locally in your browser.</small>
+</main>
+<script>
+'use strict';
+const selected=new URLSearchParams(location.search).get('file');
+const targets={mobile:document.getElementById('mobileDownload'),desktop:document.getElementById('desktopDownload')};
+if(Object.prototype.hasOwnProperty.call(targets,selected)){
+  document.getElementById('message').textContent='Preparing '+targets[selected].download+' for offline use.';
+  if(new URLSearchParams(location.search).get('manual')!=='1'){
+    // Same-origin HTML download attribute forces Save As instead of showing raw source.
+    // Browsers that block navigation-triggered downloads can use the visible buttons.
+    window.addEventListener('load',()=>targets[selected].click(),{once:true});
+  }
+}
+</script>
+</body>
+</html>
