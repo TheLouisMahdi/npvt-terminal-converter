@@ -153,7 +153,7 @@ async function run(){
       assert.deepEqual(await available(),['inspection']);
       await page.locator('#smartPassphrase').fill(passphrase);
       await page.locator('#smartUnlock').click();
-      await waitSource('authenticated');
+      await waitSource('AEAD verified');
       assert.ok((await available()).includes('links'));
       await page.locator('#smartTarget').selectOption('links');
       assert.match(await page.locator('#smartOutput').inputValue(),/vless:\/\//);
@@ -193,7 +193,7 @@ async function run(){
         configId:gen2Id.toString('hex'),salt:gen2Salt.toString('hex'),a16:a16.toString('hex')}]};
       await page.locator('#smartAppKeyFile').setInputFiles({
         name:'authorized-keys.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(authorized))});
-      await waitSource('authenticated');
+      await waitSource('AEAD verified');
       assert.ok((await available()).includes('links'));
       assert.match(await page.locator('#smartAppKeyStatus').innerText(),/1 authorized key/);
       assert.equal((await page.locator('body').innerText()).includes(a16.toString('hex')),false);
