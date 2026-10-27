@@ -18,7 +18,9 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 | NPVT1 (legacy encrypted container) | Supported link extraction and Base64 link subscriptions | Rewriting NPVT1 from extracted links would lose source metadata |
 | NPVO1 (open export) | Known share URIs and Base64 subscription | Repacking without loss not yet proven |
 | NetMod Syna encrypted `.nm` / same blob with an unknown extension | Recovered **original** NetMod SSH/Proxy JSON | No fabricated VLESS/VMess links |
-| NPVS binary v5, app-key / passphrase / recipient locked | Inspected, nonsecret header details | **Cannot decrypt authenticated payload without available key** |
+| NPVS Gen-1 creator-passphrase or generation-1 app-key | Authenticated payload with supplied password or compatible existing app-key generation | Unknown creator passphrases still require an authorized password; no universal key |
+| NPVS v5 creator-passphrase | Authenticated metadata and field records when a correct passphrase is supplied | No password-free unlock of unknown passphrases; real exports still need interoperability tests |
+| NPVS v5 app-key / recipient-private-key | Inspected, nonsecret header details | Specialized tables or a matching private key not available |
 | Generic JSON | Original JSON | No guessed proxy protocol |
 | Unsupported external URI, e.g. SSR/SSD/EHI/HAT/other | Recognition message | No fabricated conversion results |
 
@@ -47,11 +49,11 @@ Compatibility references:
 - Duplicate Mihomo proxy names block the merge rather than silently overwriting proxies.
 - A JSON source bundle option preserves files as text for later processing; it is **not** a native Xray/Mihomo config.
 - Native per-Core JSON and wireguard/TT outputs are restricted to one suitable source unless a batch mapping has been verified.
-- An NPVS file in a batch restricts the selection appropriately; encrypted content cannot be used as decrypted profile data.
+- A locked NPVS file in a batch restricts the selection appropriately; encrypted content cannot be used as decrypted profile data. Authenticated, unlocked NPVS payloads may be converted using the existing mapping gates.
 
 ## Why a password-free NPVS converter is not universal
 
-The supplied NPVS v5 sample uses the **creator-passphrase unlock method**, PBKDF2-HMAC-SHA256 and authenticated ChaCha20-Poly1305 encryption. Its ciphertext cannot be reliably converted to proxy settings without the actual unlocking key or plaintext. An app-key or recipient-key variant has **different** requirements. The converter never invents passwords or represents a successful format check as successful decryption.
+The supplied NPVS v5 sample uses the **creator-passphrase unlock method**, PBKDF2-HMAC-SHA256 and authenticated ChaCha20-Poly1305 encryption. Phase 2 adds verified decryption when a user supplies the correct passphrase. An unknown password cannot be bypassed merely by recognizing the format. An app-key or recipient-key variant has **different** requirements. The converter never invents passwords or represents a successful format check as successful decryption.
 
 Open NPV exports (`NPVO1`), legacy NPVT1 and certain NetMod generations can be decoded without creator passphrases because their formats differ. The format is identified from binary/text structure, not from file names alone.
 
