@@ -1609,7 +1609,8 @@ function decodeOneNPVTToken(text) {
   tok = tok.replace(/^["'`]+|["'`]+$/g, '');
   tok = stripWs(tok);
   if (!tok) throw new Error('empty token');
-  tok = tok.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9+/=_-]+$/g, '');
+  // '+' and '/' are valid leading Base64 characters, not punctuation.
+  if (!/^[A-Za-z0-9+/_=-]+$/.test(tok)) throw new Error('invalid NPVT token alphabet');
   if (isHex(tok) && tok.length >= 32) return hexToBytes(tok);
   return b64ToBytes(tok);
 }
