@@ -143,8 +143,8 @@ async function run(){
       const gen2ContentId=crypto.randomBytes(32),gen2Seq=65535;
       const config=Buffer.from(JSON.stringify({configs:[{name:'Gen2',v2rayProfile:{
         configType:5,server:'example.org',serverPort:443,password:uuid,method:'none'}}]}));
-      const info=Buffer.concat([Buffer.from('NPV-fields-v1/field/'),b16(gen2Seq)]);
-      const fieldKey=Buffer.from(crypto.hkdfSync('sha256',gen2Dek,gen2ContentId,info,32));
+      const fieldInfo=Buffer.concat([Buffer.from('NPV-fields-v1/field/'),b16(gen2Seq)]);
+      const fieldKey=Buffer.from(crypto.hkdfSync('sha256',gen2Dek,gen2ContentId,fieldInfo,32));
       const fieldAad=Buffer.concat([Buffer.from('NPV-fields-v1/record/'),gen2ContentId,b16(gen2Seq),u32(config.length)]);
       const fieldBlob=sealNpvs(fieldKey,Buffer.alloc(12),config,fieldAad);
       const gen2Body=Buffer.concat([Buffer.from([78,80,70,1]),gen2ContentId,b16(1),
