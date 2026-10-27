@@ -281,6 +281,11 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
 @media(max-width:760px){.smart-workspace textarea,.smart-result select{font-size:16px}.smart-drop span,.smart-more{font-size:13px}.smart-head p{font-size:14px}.smart-workspace label.input-label{font-size:13px}}
 @media(max-width:500px){.hero-panel{display:none}.smart-head h2{font-size:19px}.smart-status-indicator{font-size:9px}.smart-buttons .btn{min-width:0}}
 
+.npvs-password-row{display:flex;gap:8px;flex-wrap:wrap}
+.npvs-password-row input{flex:1 1 210px;min-width:0;border:1px solid rgba(128,216,173,.35);
+  border-radius:12px;background:rgba(4,17,12,.72);color:#d9f2e4;padding:12px;font-size:15px}
+.npvs-password-row button{flex:0 1 auto;min-height:42px}
+.mobile-standalone .npvs-password-row button{flex:1 1 100%}
 
 /* Mobile-only presentation; desktop Index.html stays untouched. */
 body.mobile-standalone{
@@ -424,6 +429,11 @@ body.mobile-standalone:after{display:none}
         </div>
         <input type="file" id="smartFiles" multiple accept=".npvt,.npvs,.nm,.json,.yaml,.yml,.ini,.conf,.txt,.base64,*/*" hidden>
         <textarea id="smartInput" aria-describedby="smartDetected smartStatus" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
+        <label class="input-label" for="smartPassphrase">Optional NPVS creator passphrase (used locally only)</label>
+        <div class="npvs-password-row">
+          <input id="smartPassphrase" type="password" autocomplete="off" spellcheck="false" placeholder="Only if the file requires a passphrase">
+          <button class="btn secondary" type="button" id="smartUnlock">Unlock selected files</button>
+        </div>
         <div id="smartDetected" class="smart-detected" aria-live="polite">No input yet</div>
         <details id="smartDetectedMore" class="smart-more" hidden><summary>Show all detected files</summary><div id="smartDetectedAll" class="smart-more-content"></div></details>
       </div>
@@ -3880,6 +3890,188 @@ function parseJsonWithComments(input){
   }
   return JSON.parse(withoutTrailingCommas);
 }
+/* NPVS Phase 2: standalone offline authenticated importer. Inlined into Index.html. */
+const NPVS_PHASE2_MAX = 1048576;
+const npvsUtf8 = new TextEncoder();
+function npvsFail(reason){throw new Error('NPVS: '+reason);}
+function npvsJoin(...arrays){const out=new Uint8Array(arrays.reduce((n,a)=>n+a.length,0));let o=0;for(const a of arrays){out.set(a,o);o+=a.length;}return out;}
+function npvsBE16(x){return new Uint8Array([x>>>8,x&255]);}
+function npvsBE32(x){return new Uint8Array([x>>>24,(x>>>16)&255,(x>>>8)&255,x&255]);}
+function npvsLE64(x){const a=new Uint8Array(8);let n=BigInt(x);for(let i=0;i<8;i++){a[i]=Number(n&255n);n>>=8n;}return a;}
+function npvsBigLE(bytes){let n=0n;for(let i=bytes.length-1;i>=0;i--)n=(n<<8n)|BigInt(bytes[i]);return n;}
+function npvsRead32(buf,offset){return (buf[offset]|(buf[offset+1]<<8)|(buf[offset+2]<<16)|(buf[offset+3]<<24))>>>0;}
+function npvsPut32(buf,offset,x){for(let i=0;i<4;i++)buf[offset+i]=(x>>>(8*i))&255;}
+function npvsRot(x,n){return (x<<n)|(x>>>(32-n));}
+function npvsBlock(key,nonce,counter){
+  const st=new Uint32Array(16);
+  st.set([0x61707865,0x3320646e,0x79622d32,0x6b206574]);
+  for(let i=0;i<8;i++)st[4+i]=npvsRead32(key,4*i);
+  st[12]=counter;for(let i=0;i<3;i++)st[13+i]=npvsRead32(nonce,4*i);
+  const x=Uint32Array.from(st);
+  function q(a,b,c,d){x[a]=(x[a]+x[b])>>>0;x[d]=npvsRot(x[d]^x[a],16);x[c]=(x[c]+x[d])>>>0;x[b]=npvsRot(x[b]^x[c],12);x[a]=(x[a]+x[b])>>>0;x[d]=npvsRot(x[d]^x[a],8);x[c]=(x[c]+x[d])>>>0;x[b]=npvsRot(x[b]^x[c],7);}
+  for(let i=0;i<10;i++){q(0,4,8,12);q(1,5,9,13);q(2,6,10,14);q(3,7,11,15);q(0,5,10,15);q(1,6,11,12);q(2,7,8,13);q(3,4,9,14);}
+  const out=new Uint8Array(64);for(let i=0;i<16;i++)npvsPut32(out,4*i,(x[i]+st[i])>>>0);return out;
+}
+function npvsPoly1305(message,otk){
+  const clamp=otk.slice(0,16);
+  clamp[3]&=15;clamp[7]&=15;clamp[11]&=15;clamp[15]&=15;
+  clamp[4]&=252;clamp[8]&=252;clamp[12]&=252;
+  const r=npvsBigLE(clamp),s=npvsBigLE(otk.subarray(16,32)),p=(1n<<130n)-5n;
+  let acc=0n;
+  for(let i=0;i<message.length;i+=16){const part=message.subarray(i,i+16);acc=((acc+npvsBigLE(part)+(1n<<BigInt(part.length*8)))*r)%p;}
+  const result=(acc+s)&((1n<<128n)-1n);
+  const bytes=new Uint8Array(16);let tmp=result;for(let i=0;i<16;i++){bytes[i]=Number(tmp&255n);tmp>>=8n;}return bytes;
+}
+function npvsPad16(bytes){return new Uint8Array((16-bytes.length%16)%16);}
+function npvsOpen(key,nonce,sealed,aad=new Uint8Array()){
+  if(key.length!==32||nonce.length!==12||sealed.length<16)npvsFail('invalid authenticated encryption parameters');
+  const data=sealed.subarray(0,sealed.length-16),tag=sealed.subarray(sealed.length-16);
+  const macInput=npvsJoin(aad,npvsPad16(aad),data,npvsPad16(data),npvsLE64(aad.length),npvsLE64(data.length));
+  const expected=npvsPoly1305(macInput,npvsBlock(key,nonce,0).subarray(0,32));
+  let different=0;for(let i=0;i<16;i++)different|=tag[i]^expected[i];
+  if(different)npvsFail('authentication failed (wrong key, damaged file or modified ciphertext)');
+  const out=new Uint8Array(data.length);
+  for(let offset=0,counter=1;offset<data.length;offset+=64,counter++){
+    const block=npvsBlock(key,nonce,counter);
+    for(let j=0;j<64&&offset+j<data.length;j++)out[offset+j]=data[offset+j]^block[j];
+  }
+  return out;
+}
+async function npvsPbkdf2(pass,salt,iterations){
+  if(!Number.isSafeInteger(iterations)||iterations<1||iterations>2000000)npvsFail('PBKDF2 iterations outside supported 1..2000000 range');
+  const key=await crypto.subtle.importKey('raw',npvsUtf8.encode(pass),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},key,256));
+}
+async function npvsHKDF(secret,salt,info){
+  const key=await crypto.subtle.importKey('raw',secret,'HKDF',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt,info},key,256));
+}
+function npvsB64(value){
+  if(typeof value!=='string'||!/^[A-Za-z0-9_+\/-]*={0,2}$/.test(value))npvsFail('invalid wrapped key encoding');
+  const bin=atob(value.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-value.length%4)%4));
+  return Uint8Array.from(bin,c=>c.charCodeAt(0));
+}
+function npvsUtf8Decode(bytes){return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+function npvsGen1(data,passphrase){
+  if(data.length<9+16+64)npvsFail('truncated Gen-1 envelope');
+  const view=new DataView(data.buffer,data.byteOffset,data.byteLength),len=view.getUint32(5,false);
+  if(len<2||len>data.length-9-16-64)npvsFail('invalid Gen-1 header length');
+  const headerBytes=data.subarray(9,9+len),nonceOffset=9+len;
+  const bodyLength=view.getUint32(nonceOffset+12,false);
+  if(bodyLength<16||nonceOffset+16+bodyLength+64!==data.length)npvsFail('invalid Gen-1 body length');
+  let header;
+  try{header=JSON.parse(npvsUtf8Decode(headerBytes));}catch(_){npvsFail('invalid Gen-1 JSON header');}
+  if(!header||typeof header!=='object'||Array.isArray(header))npvsFail('invalid Gen-1 header object');
+  const app=header.appKey,locked=header.passphrase;
+  if(!app&&!locked)npvsFail('recipient-key variant requires the matching private key');
+  return {headerBytes,header,nonce:data.subarray(nonceOffset,nonceOffset+12),sealed:data.subarray(nonceOffset+16,nonceOffset+16+bodyLength),app,locked,passphrase};
+}
+function npvsGen2(data,passphrase){
+  if(data.length<9+135+16+64)npvsFail('truncated Gen-2 envelope');
+  const view=new DataView(data.buffer,data.byteOffset,data.byteLength),length=view.getUint32(5,false);
+  if(length<135||length>data.length-9-16-64)npvsFail('invalid Gen-2 header length');
+  const header=data.subarray(9,9+length),hv=new DataView(header.buffer,header.byteOffset,header.byteLength);
+  if(header[0]!==1)npvsFail('unknown Gen-2 header revision');
+  const method=header[50],count=hv.getUint16(51,false);
+  if(method>2||count>1024||(method===0&&!count))npvsFail('invalid Gen-2 unlock method or recipient list');
+  let off=53+count*125,iterations=0,salt,wrap;
+  const block=method===1?80:method===2?78:0;
+  if(off+block+4>length)npvsFail('truncated Gen-2 key block');
+  if(method===1){iterations=hv.getUint32(off,false);salt=header.subarray(off+4,off+20);wrap=header.subarray(off+20,off+80);}
+  if(method===2){if(hv.getUint16(off,false)!==2)npvsFail('invalid app-key marker');salt=header.subarray(off+2,off+18);wrap=header.subarray(off+18,off+78);}
+  off+=block;
+  const metaLength=hv.getUint32(off,false);
+  if(metaLength<16||off+4+metaLength!==length)npvsFail('invalid Gen-2 sealed metadata size');
+  const meta=header.subarray(off+4),prefix=header.subarray(0,off);
+  const bodyOff=9+length,bodyLength=view.getUint32(bodyOff+12,false);
+  if(bodyLength<38||bodyOff+16+bodyLength+64!==data.length)npvsFail('invalid Gen-2 body length');
+  const body=data.subarray(bodyOff+16,bodyOff+16+bodyLength);
+  if(body[0]!==78||body[1]!==80||body[2]!==70||body[3]!==1)npvsFail('invalid NPF record magic');
+  const bv=new DataView(body.buffer,body.byteOffset,body.byteLength),num=bv.getUint16(36,false);
+  let pos=38;const rows=[];const seen=new Set();
+  for(let i=0;i<num;i++){
+    if(pos+6>body.length)npvsFail('truncated NPF record header');
+    const seq=bv.getUint16(pos,false),size=bv.getUint16(pos+4,false);
+    if(size<16||pos+6+size>body.length||seen.has(seq))npvsFail('invalid or repeated NPF record');
+    seen.add(seq);rows.push({seq,sealed:body.subarray(pos+6,pos+6+size)});pos+=6+size;
+  }
+  if(pos!==body.length)npvsFail('trailing NPF data');
+  return {method,iterations,salt,wrap,meta,prefix,nonce:data.subarray(bodyOff,bodyOff+12),contentID:body.subarray(4,36),rows,configID:header.subarray(1,17),passphrase};
+}
+function npvsDecodeSentinels(value){
+  if(typeof value!=='string')return value;
+  return value.replace(/npvs1:([A-Za-z0-9+/_=-]+)/g,(all,token)=>{
+    try{return npvsUtf8Decode(npvsB64(token));}catch(_){return all;}
+  });
+}
+function npvsUnwrapFieldText(bytes){
+  const value=npvsUtf8Decode(bytes).trim();
+  if(value.startsWith('"')&&value.endsWith('"')){
+    try{const parsed=JSON.parse(value);if(typeof parsed==='string')return npvsDecodeSentinels(parsed);}catch(_){}
+  }
+  return npvsDecodeSentinels(value);
+}
+function npvsSubstitute(value,fields){
+  if(typeof value==='number'&&Number.isInteger(value)&&fields.has(value))return npvsUnwrapFieldText(fields.get(value));
+  if(typeof value==='string')return npvsDecodeSentinels(value);
+  if(Array.isArray(value))return value.map(v=>npvsSubstitute(v,fields));
+  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,npvsSubstitute(v,fields)]));
+  return value;
+}
+async function npvsPhase2Decode(input,passphrase=''){
+  const data=input instanceof Uint8Array?input:new Uint8Array(input);
+  if(data.length>NPVS_PHASE2_MAX)npvsFail('file exceeds 1 MiB');
+  if(data.length<9||data[0]!==78||data[1]!==80||data[2]!==86||data[3]!==83)npvsFail('not an NPVS file');
+  const version=data[4];
+  if(version<=1){
+    const env=npvsGen1(data,passphrase);
+    let dek;
+    if(env.app){
+      if(env.app.kdf!=='wbaes-ctr-sha256'||env.app.keyId!==1)npvsFail('unsupported app-key generation');
+      if(typeof ctrCrypt!=='function')npvsFail('legacy key generation is unavailable');
+      const salt=npvsB64(env.app.salt),wrap=npvsB64(env.app.wrap);
+      if(salt.length!==16||wrap.length!==60)npvsFail('bad Gen-1 app-key parameters');
+      const stream=ctrCrypt(salt,new Uint8Array(16));
+      const source=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v1 '),stream);
+      const kdk=new Uint8Array(await crypto.subtle.digest('SHA-256',source));
+      dek=npvsOpen(kdk,wrap.subarray(0,12),wrap.subarray(12),salt);
+    }else{
+      if(!passphrase)return {status:'locked',version,unlock:'creator-passphrase'};
+      if(env.locked.kdf!=='pbkdf2-hmac-sha256')npvsFail('unsupported Gen-1 passphrase KDF');
+      const salt=npvsB64(env.locked.salt),wrap=npvsB64(env.locked.wrap);
+      if(salt.length!==16||wrap.length!==60)npvsFail('invalid Gen-1 passphrase block');
+      const kdk=await npvsPbkdf2(passphrase,salt,env.locked.iters);
+      dek=npvsOpen(kdk,wrap.subarray(0,12),wrap.subarray(12),salt);
+    }
+    if(dek.length!==32)npvsFail('invalid Gen-1 decrypted key length');
+    const text=npvsUtf8Decode(npvsOpen(dek,env.nonce,env.sealed,env.headerBytes));
+    let obj;
+    try{obj=JSON.parse(text);}catch(_){obj=text;}
+    return {status:'unlocked',version,unlock:env.app?'app-key':'creator-passphrase',obj};
+  }
+  if(version!==5)npvsFail('unsupported NPVS version '+version);
+  const env=npvsGen2(data,passphrase);
+  if(env.method===0)return {status:'locked',version,unlock:'recipient-private-key'};
+  if(env.method===2)return {status:'locked',version,unlock:'app-key',reason:'Gen-2 app-key tables unavailable'};
+  if(!passphrase)return {status:'locked',version,unlock:'creator-passphrase'};
+  const kdk=await npvsPbkdf2(passphrase,env.salt,env.iterations);
+  const dek=npvsOpen(kdk,env.wrap.subarray(0,12),env.wrap.subarray(12),env.salt);
+  if(dek.length!==32)npvsFail('invalid Gen-2 decrypted key length');
+  const metaKey=await npvsHKDF(dek,env.nonce,npvsUtf8.encode('NPVS-v5/metadata'));
+  const metadata=npvsOpen(metaKey,env.nonce,env.meta,env.prefix);
+  try{JSON.parse(npvsUtf8Decode(metadata));}catch(_){npvsFail('authenticated metadata is not valid JSON');}
+  const fields=new Map();
+  for(const row of env.rows){
+    const key=await npvsHKDF(dek,env.contentID,npvsJoin(npvsUtf8.encode('NPV-fields-v1/field/'),npvsBE16(row.seq)));
+    const aad=npvsJoin(npvsUtf8.encode('NPV-fields-v1/record/'),env.contentID,npvsBE16(row.seq),npvsBE32(row.sealed.length-16));
+    fields.set(row.seq,npvsOpen(key,new Uint8Array(12),row.sealed,aad));
+  }
+  if(!fields.has(65535))npvsFail('authenticated config sentinel table missing');
+  let doc;
+  try{doc=JSON.parse(npvsUtf8Decode(fields.get(65535)));}catch(_){npvsFail('invalid authenticated config sentinel table');}
+  if(!doc||!Array.isArray(doc.configs)||!doc.configs.length)npvsFail('empty authenticated config table');
+  return {status:'unlocked',version,unlock:'creator-passphrase',obj:{configs:doc.configs.map(cfg=>npvsSubstitute(cfg,fields))}};
+}
 function smartRecognizeText(text,name='pasted input'){
   const raw=String(text||'').trim();
   if(!raw)throw new Error('Empty input');
@@ -3954,9 +4146,38 @@ function smartRecognizeText(text,name='pasted input'){
 async function smartRecognizeFile(file){
   if(!file||file.size>1048576)throw new Error('Files must be 1 MB or smaller');
   const bytes=new Uint8Array(await file.arrayBuffer()),name=file.name||'config';
-  if(bytes.length>=4 && bytes[0]===78&&bytes[1]===80&&bytes[2]===86&&bytes[3]===83){
-    const meta=inspectNpvsV5(bytes);
-    return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · encrypted',name,meta,links:[]};
+  let npvsBytes=bytes;
+  if(bytes.length>12 && bytes.length<1048576 && bytes[0]===84&&bytes[1]===108&&bytes[2]===66&&bytes[3]===87){
+    try{
+      const decoded=b64ToBytes(new TextDecoder().decode(bytes).trim());
+      if(decoded[0]===78&&decoded[1]===80&&decoded[2]===86&&decoded[3]===83)npvsBytes=decoded;
+    }catch(_){ /* not a Base64-wrapped NPVS */ }
+  }
+  if(npvsBytes.length>=9&&npvsBytes[0]===78&&npvsBytes[1]===80&&npvsBytes[2]===86&&npvsBytes[3]===83){
+    const password=$('smartPassphrase').value;
+    const meta=npvsBytes[4]===5?inspectNpvsV5(npvsBytes):null;
+    if(meta&&(!password||meta.unlock!=='creator-passphrase')){
+      return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · encrypted',name,meta,links:[]};
+    }
+    const decoded=await npvsPhase2Decode(npvsBytes,password);
+    if(decoded.status!=='unlocked'){
+      const info={format:'NPVS',version:decoded.version,unlock:decoded.unlock,encrypted:true,
+        ...(decoded.reason?{reason:decoded.reason}:{})};
+      return {kind:'npvs',label:'NPVS v'+decoded.version+' · '+decoded.unlock+' · locked',name,meta:info,links:[]};
+    }
+    const obj=decoded.obj;
+    let links=[],notes=[];
+    if(typeof obj==='string'){
+      const output=processTextContent(obj,name);
+      links=output.errors.length?[]:output.links.map(x=>x.link);
+      notes=output.errors;
+    }else{
+      const output=convertJSONToLinks(obj,name);
+      links=output.errors.length?[]:output.links.map(x=>x.link);
+      notes=output.errors;
+    }
+    return {kind:'npvs-decrypted',label:'NPVS v'+decoded.version+' · authenticated · '+links.length+' share link(s)',
+      name,obj,links,text:typeof obj==='string'?obj:JSON.stringify(obj),notes};
   }
   if(/\.nm$/i.test(name)){
     const obj=await decryptNetMod(bytes);
@@ -4189,9 +4410,10 @@ function smartConvertRecords(records,target){
     return JSON.stringify(source.obj,null,2);
   }
   if(target==='json'){
-    if(!['json','xray','singbox','mihomo','netmod','tt-json'].includes(source.kind))
+    if(!['json','xray','singbox','mihomo','netmod','tt-json','npvs-decrypted'].includes(source.kind))
       throw new Error('Not a JSON source');
-    return JSON.stringify(source.obj||parseJsonWithComments(source.text),null,2);
+    return source.kind==='npvs-decrypted' && typeof source.obj==='string' ? source.obj :
+      JSON.stringify(source.obj||parseJsonWithComments(source.text),null,2);
   }
   if(target==='xray'||target==='singbox')return JSON.stringify(smartSingleCore(source,target),null,2);
   throw new Error('Unknown output target');
@@ -4231,6 +4453,7 @@ async function smartAvailableResponsive(records,rejections,isCurrent){
 }
 
 document.addEventListener('dragover',e=>e.preventDefault());
+let smartLastFiles=[];
 const smartState={records:[],outputs:{},rejections:{}};
 function smartDefaultTarget(records,formats){
   if(!formats.length)return '';
@@ -4243,6 +4466,7 @@ function smartDefaultTarget(records,formats){
     :source==='xray'?['xray','links']
     :source==='singbox'?['singbox','links']
     :source==='npvs'?['inspection']
+    :source==='npvs-decrypted'?['links','xray','singbox','json']
     :[];
   return preferred.find(format=>formats.includes(format))||formats[0];
 }
@@ -4279,7 +4503,7 @@ function smartRender(){
     SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nEncrypted NPVS: only inspection is possible without its authorized key.':'')
+      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')
     :'Ready. Files are processed entirely in this browser.';
 }
 function smartChooseTarget(){
@@ -4326,7 +4550,7 @@ $('smartInput').addEventListener('input',()=>{
   clearTimeout(smartDebounce);
   const revision=smartBegin('Checking pasted input locally…');
   smartDebounce=setTimeout(async()=>{
-    $('smartFiles').value='';
+    $('smartFiles').value='';smartLastFiles=[];
     if(revision!==smartRevision)return;
     const value=$('smartInput').value.trim();
     if(!value){await smartCommit([],revision);return;}
@@ -4341,6 +4565,7 @@ $('smartInput').addEventListener('input',()=>{
 });
 async function smartImportFiles(files){
   if(!files||!files.length)return;
+  smartLastFiles=Array.from(files);
   clearTimeout(smartDebounce);
   const revision=smartBegin('Inspecting '+files.length+' file(s) locally…');
   if(files.length>80){
@@ -4365,6 +4590,13 @@ async function smartImportFiles(files){
     $('smartStatus').textContent+='\n'+issues.length+' source(s) rejected:\n'+issues.slice(0,8).join('\n');
   }
 }
+$('smartUnlock').addEventListener('click',()=>{
+  if(!smartLastFiles.length){$('smartStatus').textContent='Choose an NPVS file first.';return;}
+  void smartImportFiles(smartLastFiles);
+});
+$('smartPassphrase').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();$('smartUnlock').click();}
+});
 $('smartFiles').addEventListener('change',e=>{
   const files=Array.from(e.target.files||[]);
   e.target.value=''; // Allow choosing the same filename again.
@@ -4396,7 +4628,7 @@ $('smartDownload').addEventListener('click',()=>{
 $('smartReset').addEventListener('click',()=>{
   clearTimeout(smartDebounce);
   const revision=++smartRevision;
-  $('smartFiles').value='';$('smartInput').value='';
+  $('smartFiles').value='';$('smartInput').value='';$('smartPassphrase').value='';smartLastFiles=[];
   void smartCommit([],revision);
 });
 smartRender();
