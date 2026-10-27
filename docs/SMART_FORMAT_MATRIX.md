@@ -20,7 +20,8 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 | NetMod Syna encrypted `.nm` / same blob with an unknown extension | Recovered **original** NetMod SSH/Proxy JSON | No fabricated VLESS/VMess links |
 | NPVS Gen-1 creator-passphrase or generation-1 app-key | Authenticated payload with supplied password or compatible existing app-key generation | Unknown creator passphrases still require an authorized password; no universal key |
 | NPVS v5 creator-passphrase | Authenticated metadata and field records when a correct passphrase is supplied | No password-free unlock of unknown passphrases; real exports still need interoperability tests |
-| NPVS v5 app-key / recipient-private-key | Inspected, nonsecret header details | Specialized tables or a matching private key not available |
+| NPVS v5 app-key | Authenticated config extraction **if** a matching, authorized A16/KDK keyring entry is loaded | Without that material the file stays inspection-only; universal A16 derivation tables are not shipped |
+| NPVS v5 recipient-private-key | Inspected, nonsecret header details | Requires matching private key and adapter |
 | Generic JSON | Original JSON | No guessed proxy protocol |
 | Unsupported external URI, e.g. SSR/SSD/EHI/HAT/other | Recognition message | No fabricated conversion results |
 
