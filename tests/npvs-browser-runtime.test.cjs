@@ -28,11 +28,12 @@ function fixtureGen1(){
   const sealed=seal(dek,nonce,body,header);
   return Buffer.concat([Buffer.from([78,80,86,83,1]),U32(header.length),header,nonce,U32(sealed.length),sealed,Buffer.alloc(64)]);
 }
-function fixtureGen2(){
+function fixtureGen2(appKeyMode=false){
   const configID=crypto.randomBytes(16),creator=crypto.randomBytes(33),salt=crypto.randomBytes(16),dek=crypto.randomBytes(32),nonce=crypto.randomBytes(12),iters=500;
-  const kdk=crypto.pbkdf2Sync(password,salt,iters,32,'sha256'),wrapNonce=crypto.randomBytes(12);
+  const a16=crypto.randomBytes(16);
+  const kdk=appKeyMode?crypto.createHash('sha256').update('npvtunnel/appkey/v2 ').update(a16).update(configID).digest():crypto.pbkdf2Sync(password,salt,iters,32,'sha256'),wrapNonce=crypto.randomBytes(12);
   const wrap=Buffer.concat([wrapNonce,seal(kdk,wrapNonce,dek,salt)]);
-  const prefix=Buffer.concat([Buffer.from([1]),configID,creator,Buffer.from([1]),B16(0),U32(iters),salt,wrap]);
+  const prefix=Buffer.concat([Buffer.from([1]),configID,creator,Buffer.from([appKeyMode?2:1]),B16(0),...(appKeyMode?[B16(2)]:[U32(iters)]),salt,wrap]);
   const metaKey=crypto.hkdfSync('sha256',dek,nonce,'NPVS-v5/metadata',32);
   const meta=seal(metaKey,nonce,Buffer.from('{"policy":{}}'),prefix);
   const header=Buffer.concat([prefix,U32(meta.length),meta]);
@@ -49,7 +50,8 @@ function fixtureGen2(){
     rows.push(Buffer.concat([B16(n),B16(0),B16(blob.length),blob]));
   }
   const body=Buffer.concat([Buffer.from([78,80,70,1]),contentID,B16(rows.length),...rows]);
-  return Buffer.concat([Buffer.from([78,80,86,83,5]),U32(header.length),header,nonce,U32(body.length),body,Buffer.alloc(64)]);
+  const file=Buffer.concat([Buffer.from([78,80,86,83,5]),U32(header.length),header,nonce,U32(body.length),body,Buffer.alloc(64)]);
+  return appKeyMode?{file,configId:configID.toString('hex'),salt:salt.toString('hex'),a16:a16.toString('hex'),kdk:kdk.toString('hex')}:file;
 }
 
 test('RFC-style ChaCha20-Poly1305 authenticates Node-generated ciphertext',()=>{
@@ -118,4 +120,47 @@ test('Gen-1 app-key can import unattended if existing legacy CTR key matches',as
   assert.equal(result.unlock,'app-key');
   assert.equal(result.obj.configs[0].name,'Auto');
   delete context.ctrCrypt;
+});
+test('Gen-2 AppKey opens without a password after an authorized A16 is installed',async()=>{
+  const f=fixtureGen2(true);
+  const before=await call('npvsPhase2Decode',[f.file,'']);
+  assert.equal(before.status,'locked');
+  assert.equal(before.unlock,'app-key');
+  assert.match(before.reason,/not loaded/);
+  assert.equal(call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    {configId:f.configId,salt:f.salt,a16:f.a16}]}]),1);
+  const result=await call('npvsPhase2Decode',[f.file,'']);
+  assert.equal(result.status,'unlocked');
+  assert.equal(result.unlock,'app-key');
+  assert.equal(result.obj.configs[0].v2rayProfile.server,'example.org');
+  assert.equal(result.obj.configs[0].v2rayProfile.password,'f47ac10b-58cc-4372-a567-0e02b2c3d4e5');
+  call('npvsClearGen2Keys',[]);
+});
+test('Gen-2 keyring accepts a matching authorized 32-byte KDK',async()=>{
+  const f=fixtureGen2(true);
+  assert.equal(call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    {configId:f.configId,salt:f.salt,kdk:f.kdk}]}]),1);
+  assert.equal((await call('npvsPhase2Decode',[f.file,''])).status,'unlocked');
+  call('npvsClearGen2Keys',[]);
+});
+test('Incorrect or mismatched AppKey cannot release plaintext',async()=>{
+  const f=fixtureGen2(true);
+  const wrongSalt='00'.repeat(16);
+  call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    {configId:f.configId,salt:wrongSalt,a16:f.a16}]}]);
+  assert.equal((await call('npvsPhase2Decode',[f.file,''])).status,'locked');
+  call('npvsClearGen2Keys',[]);
+  call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    {configId:f.configId,salt:f.salt,kdk:'01'.repeat(32)}]}]);
+  await assert.rejects(call('npvsPhase2Decode',[f.file,'']),/authentication failed/);
+  call('npvsClearGen2Keys',[]);
+});
+test('AppKey import rejects invalid and duplicate entries without partial mutation',()=>{
+  const f=fixtureGen2(true);
+  const entry={configId:f.configId,salt:f.salt,a16:f.a16};
+  assert.throws(()=>call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    entry,entry]}]),/duplicate/);
+  assert.throws(()=>call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
+    entry,{configId:f.configId,salt:f.salt,a16:'gg'}]}]),/invalid/);
+  assert.equal(call('npvsHasGen2Key',[Buffer.from(f.configId,'hex'),Buffer.from(f.salt,'hex')]),false);
 });
