@@ -4134,9 +4134,17 @@ async function smartRecognizeFile(file){
     const meta=npvsBytes[4]===5?inspectNpvsV5(npvsBytes):null;
     // Inspect passphrase/recipient files without parsing still-encrypted NPF records.
     // Gen-2 AppKey goes through the authenticated decoder when key material exists.
+    let missingGen2AppKey=false;
+    if(meta&&meta.unlock==='app-key'){
+      const hlen=new DataView(npvsBytes.buffer,npvsBytes.byteOffset,npvsBytes.byteLength).getUint32(5,false);
+      const h=npvsBytes.subarray(9,9+hlen);
+      const offset=53+meta.recipients*125;
+      missingGen2AppKey=!npvsHasGen2Key(h.subarray(1,17),h.subarray(offset+2,offset+18));
+    }
     if(meta&&(meta.unlock==='recipient-private-key'||
-       (meta.unlock==='creator-passphrase'&&!password))){
-      return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · locked',name,meta,links:[]};
+       (meta.unlock==='creator-passphrase'&&!password)||missingGen2AppKey)){
+      return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · locked',name,
+        meta:{...meta,...(missingGen2AppKey?{reason:'Matching authorized Gen-2 AppKey not loaded'}:{})},links:[]};
     }
     let decoded;
     try{decoded=await npvsPhase2Decode(npvsBytes,password);}
