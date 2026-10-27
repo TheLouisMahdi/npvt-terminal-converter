@@ -4070,7 +4070,15 @@ async function smartRecognizeFile(file){
     if(meta&&(!password||meta.unlock!=='creator-passphrase')){
       return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · encrypted',name,meta,links:[]};
     }
-    const decoded=await npvsPhase2Decode(npvsBytes,password);
+    let decoded;
+    try{decoded=await npvsPhase2Decode(npvsBytes,password);}
+    catch(error){
+      if(!/authentication failed/.test(String(error.message||error)))throw error;
+      const info={format:'NPVS',version:npvsBytes[4],unlock:meta?meta.unlock:'app-key-or-creator-passphrase',
+        encrypted:true,error:'Authentication failed: incorrect passphrase, incompatible key generation or modified data'};
+      return {kind:'npvs',label:'NPVS v'+npvsBytes[4]+' · authentication failed · locked',
+        name,meta:info,links:[]};
+    }
     if(decoded.status!=='unlocked'){
       const info={format:'NPVS',version:decoded.version,unlock:decoded.unlock,encrypted:true,
         ...(decoded.reason?{reason:decoded.reason}:{})};
