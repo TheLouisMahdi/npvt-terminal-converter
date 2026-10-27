@@ -4221,8 +4221,12 @@ async function smartRecognizeFile(file){
   if(npvsBytes.length>=9&&npvsBytes[0]===78&&npvsBytes[1]===80&&npvsBytes[2]===86&&npvsBytes[3]===83){
     const password=$('smartPassphrase').value;
     const meta=npvsBytes[4]===5?inspectNpvsV5(npvsBytes):null;
-    // Try the authorized in-memory AppKey automatically. Other lock methods
-    // return a safe inspection status from the decoder when no key is available.
+    // Inspect passphrase/recipient files without parsing still-encrypted NPF records.
+    // Gen-2 AppKey goes through the authenticated decoder when key material exists.
+    if(meta&&(meta.unlock==='recipient-private-key'||
+       (meta.unlock==='creator-passphrase'&&!password))){
+      return {kind:'npvs',label:'NPVS v'+meta.version+' · '+meta.unlock+' · locked',name,meta,links:[]};
+    }
     let decoded;
     try{decoded=await npvsPhase2Decode(npvsBytes,password);}
     catch(error){
