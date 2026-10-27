@@ -3697,7 +3697,7 @@ function inspectNpvsV5(bytes){
   const bodyOffset=9+headerLength;
   const bodyLength=view.getUint32(bodyOffset+12,false);
   if(bodyLength<32||bodyOffset+16+bodyLength+64!==bytes.length)throw new Error('Malformed NPVS ciphertext length');
-  return {format:'NPVS',version,unlock:method===0?'recipient-private-key':method===1?'creator-passphrase':'app-key',recipients,iterations:iterations||undefined,bytes:bytes.length,encrypted:true};
+  return {format:'NPVS',version,unlock:method===0?'recipient-private-key':method===1?'creator-passphrase':'app-key',recipients,iterations:iterations||undefined,bytes:bytes.length,encrypted:true,creatorSignature:'unverified (signing scheme and trust anchor not established)'};
 }
 
 function nativeFormatConvert(input, target){
