@@ -71,3 +71,22 @@ test('published compatibility vectors: optional locally supplied legal table ass
   call('npvsClearGen2Keys()');
   assert.equal(call('npvsHasGen2Key(new Uint8Array(16),new Uint8Array(16))'),false);
 });
+
+test('published authorized Gen-2 v5 AppKey fixture decrypts only after compatible table import',async()=>{
+  const tableName=process.env.NPVS_COMPAT_TABLE_FILE;
+  const fileName=process.env.NPVS_COMPAT_FIXTURE_FILE;
+  if(!tableName||!fileName)return;
+  const binary=new Uint8Array(fs.readFileSync(fileName));
+  call('npvsClearGen2Keys()');
+  const before=await call('npvsPhase2Decode(binary,"")',{binary});
+  assert.equal(before.status,'locked');
+  assert.equal(before.unlock,'app-key');
+  call('npvsInstallGen2Tables(t)',{t:new Uint8Array(fs.readFileSync(tableName))});
+  const decrypted=await call('npvsPhase2Decode(binary,"")',{binary});
+  assert.equal(decrypted.status,'unlocked');
+  assert.equal(decrypted.version,5);
+  assert.equal(decrypted.unlock,'app-key');
+  assert.ok(Array.isArray(decrypted.obj.configs));
+  assert.ok(decrypted.obj.configs.length>0);
+  call('npvsClearGen2Keys()');
+});
