@@ -4062,8 +4062,11 @@ function npvsGen2(data,passphrase){
     if(size<16||pos+6+size>body.length||seen.has(seq))npvsFail('invalid or repeated NPF record');
     seen.add(seq);rows.push({seq,sealed:body.subarray(pos+6,pos+6+size)});pos+=6+size;
   }
-  if(pos!==body.length)npvsFail('trailing NPF data');
-  return {method,iterations,salt,wrap,meta,prefix,nonce:data.subarray(bodyOff,bodyOff+12),contentID:body.subarray(4,36),rows,configID:header.subarray(1,17),passphrase};
+  // Documented Gen-2 bodies may end with a 32-byte content digest/trailer.
+  // Reject unknown trailing lengths; the per-record AEAD tags are still checked.
+  const tail=body.length-pos;
+  if(tail!==0&&tail!==32)npvsFail('unsupported NPF trailer length');
+  return {method,iterations,salt,wrap,meta,prefix,nonce:data.subarray(bodyOff,bodyOff+12),contentID:body.subarray(4,36),rows,contentTrailer:body.subarray(pos),configID:header.subarray(1,17),passphrase};
 }
 function npvsDecodeSentinels(value){
   if(typeof value!=='string')return value;
