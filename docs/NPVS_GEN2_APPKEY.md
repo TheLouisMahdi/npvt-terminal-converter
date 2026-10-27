@@ -67,7 +67,7 @@ node --test tests/*.test.cjs
 node tests/browser-smoke.cjs
 ```
 
-The JavaScript source and inline versions were syntax-checked. Full test execution and real NPV export compatibility checks remain pending in this environment. Do not merge/deploy without these checks.
+GitHub Actions passed protocol regression tests (102/102), browser UI/conversion smoke, mobile synchronization, and native Xray, sing-box and Mihomo validations on the 2026-10-28 feature branch. Real NPV Tunnel export compatibility and creator signature verification remain unverified; keep the PR in draft until genuine-fixture acceptance.
 
 Known limitations:
 - No bundled or derived Gen-2 white-box A16 key material. Unknown per-file AppKeys stay locked.
