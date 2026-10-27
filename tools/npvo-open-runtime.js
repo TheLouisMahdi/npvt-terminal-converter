@@ -64,8 +64,11 @@ function npvoCheckLinkProfile(profile){
   if(profile.publicKey&&String(profile.security)!=='reality')
     throw new Error('REALITY public key without REALITY security');
   if(type===3 && network!=='tcp')throw new Error('Shadowsocks transport cannot be exported as a standard SS URI');
-  if(type===1 && !isUuid(String(profile.password)))throw new Error('VMess ID must be a UUID');
-  if(type===5 && !isUuid(String(profile.password)))throw new Error('VLESS ID must be a UUID');
+  // Some historical exports use UUID-shaped identifiers with non-RFC version bits.
+  // Preserve them verbatim; do not rewrite or silently discard those credentials.
+  const uuidShape=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+  if((type===1||type===5)&&!uuidShape.test(String(profile.password)))
+    throw new Error('VMess/VLESS credentials do not have UUID-compatible syntax');
 }
 function npvoRecognizeOpen(raw,name){
   let original;
