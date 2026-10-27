@@ -105,11 +105,11 @@ function npvsInstallGen2Tables(input){
   npvsGen2Tables=Uint8Array.from(bytes);
   return true;
 }
-async function npvsReadGen2TableFile(file){
+async function npvsReadGen2TableFile(file,isCurrent=()=>true){
   if(!file||file.size>NPVS_GEN2_TABLE_BYTES+1024||!file.size)
     npvsFail('unsupported Gen-2 table file size');
   let bytes=new Uint8Array(await file.arrayBuffer());
-  if(bytes.length===NPVS_GEN2_TABLE_BYTES)return npvsInstallGen2Tables(bytes);
+  if(bytes.length===NPVS_GEN2_TABLE_BYTES)return isCurrent()?npvsInstallGen2Tables(bytes):false;
   if(typeof DecompressionStream!=='function')npvsFail('compressed table import unsupported by browser');
   const reader=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
   const parts=[];let count=0;
@@ -125,7 +125,7 @@ async function npvsReadGen2TableFile(file){
   if(count!==NPVS_GEN2_TABLE_BYTES)npvsFail('invalid decompressed Gen-2 lookup table size');
   const buffer=new Uint8Array(count);let off=0;
   for(const part of parts){buffer.set(part,off);off+=part.length;}
-  return npvsInstallGen2Tables(buffer);
+  return isCurrent()?npvsInstallGen2Tables(buffer):false;
 }
 function npvsClearGen2Keys(){
   for(const item of npvsGen2Keys.values())item.material.fill(0);
