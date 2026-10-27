@@ -81,10 +81,27 @@ test('Gen-2 corrupted field tag and wrong passphrase are rejected',async()=>{
   const changed=Buffer.from(file);changed[changed.length-66]^=1; // Last bytes of sealed field (not signature)
   await assert.rejects(call('npvsPhase2Decode',[changed,password]),/authentication failed/);
 });
-test('Gen-2 app-key remains locked rather than fabricated',async()=>{
-  const file=fixtureGen2();
-  const headerOffset=9;file[headerOffset+50]=2;
-  await assert.rejects(call('npvsPhase2Decode',[file,'']),/app-key marker|metadata|body|block/);
+function lockedV5(method){
+  const id=crypto.randomBytes(16),creator=crypto.randomBytes(33),count=method===0?1:0;
+  const head=Buffer.concat([
+    Buffer.from([1]),id,creator,Buffer.from([method]),B16(count),
+    ...(method===0?[Buffer.alloc(125)]:[]),
+    ...(method===2?[B16(2),Buffer.alloc(16),Buffer.alloc(60)]:[]),
+    U32(16),Buffer.alloc(16)
+  ]);
+  const body=Buffer.concat([Buffer.from([78,80,70,1]),Buffer.alloc(32),B16(0)]);
+  return Buffer.concat([Buffer.from('NPVS'),Buffer.from([5]),U32(head.length),head,
+    Buffer.alloc(12),U32(body.length),body,Buffer.alloc(64)]);
+}
+test('Gen-2 app-key stays inspection-only with a valid envelope',async()=>{
+  const result=await call('npvsPhase2Decode',[lockedV5(2),'']);
+  assert.equal(result.status,'locked');
+  assert.equal(result.unlock,'app-key');
+});
+test('Gen-2 recipient-key remains locked with a valid envelope',async()=>{
+  const result=await call('npvsPhase2Decode',[lockedV5(0),'']);
+  assert.equal(result.status,'locked');
+  assert.equal(result.unlock,'recipient-private-key');
 });
 
 test('Gen-1 app-key can import unattended if existing legacy CTR key matches',async()=>{
