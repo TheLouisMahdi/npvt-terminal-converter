@@ -25,10 +25,17 @@ jobs:
             'https://raw.githubusercontent.com/FrontierTM/Pantegnos/main/internal/modules/impl/assets/npvs/gen2_tables.bin.z' \
             --output /tmp/npvs-gen2-reference.z
           node -e 'const fs=require("node:fs");const z=require("node:zlib");const raw=fs.readFileSync("/tmp/npvs-gen2-reference.z");const out=z.inflateSync(raw,{maxOutputLength:749568});if(out.length!==749568)throw Error("invalid size");fs.writeFileSync("/tmp/npvs-gen2-reference.bin",out)'
-      - name: Verify public A16 vectors against local browser evaluator
+      - name: Obtain published Gen-2 fixture for authenticated integration test
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://raw.githubusercontent.com/FrontierTM/Pantegnos/main/internal/modules/impl/npvs_gen2_test.go' \
+            --output /tmp/npvs-gen2-upstream-test.go
+          node -e 'const fs=require("node:fs");const s=fs.readFileSync("/tmp/npvs-gen2-upstream-test.go","utf8");const m=s.match(/npvGen2FixtureB64\\s*=([\\s\\S]*?)npvGen2FixtureSalt/);if(!m)throw Error("fixture source unavailable");const chunks=[...m[1].matchAll(/"([A-Za-z0-9+/=]+)"/g)].map(x=>x[1]);if(!chunks.length)throw Error("fixture missing");const out=Buffer.from(chunks.join(""),"base64");if(out.toString("ascii",0,4)!=="NPVS")throw Error("not NPVS");fs.writeFileSync("/tmp/npvs-gen2-reference-fixture.npvs",out)'
+      - name: Verify published A16 vectors and authenticated real-format fixture
         env:
           NPVS_COMPAT_TABLE_FILE: /tmp/npvs-gen2-reference.bin
+          NPVS_COMPAT_FIXTURE_FILE: /tmp/npvs-gen2-reference-fixture.npvs
         run: node --test tests/npvs-gen2-tables.test.cjs
       - name: Remove ephemeral third-party reference bytes
         if: always()
-        run: rm -f /tmp/npvs-gen2-reference.z /tmp/npvs-gen2-reference.bin
+        run: rm -f /tmp/npvs-gen2-reference.z /tmp/npvs-gen2-reference.bin /tmp/npvs-gen2-reference-fixture.npvs /tmp/npvs-gen2-upstream-test.go
