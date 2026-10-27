@@ -125,7 +125,7 @@ async function run(){
       assert.match(await page.locator('#smartOutput').inputValue(),/vless:\/\//);
       await page.locator('#smartPassphrase').fill('invalid');
       await page.locator('#smartUnlock').click();
-      await page.waitForFunction(()=>document.getElementById('smartStatus').textContent.includes('rejected'),null,{timeout:10000});
+      await waitSource('authentication failed');
       assert.equal((await available()).includes('links'),false);
       await page.locator('#smartPassphrase').fill('');
 
