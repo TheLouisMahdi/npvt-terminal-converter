@@ -4452,10 +4452,17 @@ async function smartRecognizeFile(file){
       notes=output.errors;
     }else{
       const output=convertJSONToLinks(obj,name);
-      links=output.errors.length?[]:output.links.map(x=>x.link);
-      notes=output.errors;
+      const expected=Array.isArray(obj&&obj.configs)?obj.configs.length:null;
+      const allMapped=!output.errors.length && (expected===null || output.links.length===expected);
+      links=allMapped?output.links.map(x=>x.link):[];
+      notes=output.errors.slice();
+      if(!allMapped && !notes.length)
+        notes.push('Not all encrypted profiles have verified share-link mappings; decoded JSON remains available');
     }
-    return {kind:'npvs-decrypted',label:'NPVS v'+decoded.version+' · authenticated · '+links.length+' share link(s)',
+    const incomplete=notes.length>0;
+    return {kind:'npvs-decrypted',label:'NPVS v'+decoded.version+
+      ' · AEAD verified (creator signature not verified) · '+
+      (incomplete?'links withheld; review native JSON':links.length+' share link(s)'),
       name,obj,links,text:typeof obj==='string'?obj:JSON.stringify(obj),notes};
   }
   if(/\.nm$/i.test(name)){
