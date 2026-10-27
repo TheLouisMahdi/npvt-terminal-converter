@@ -58,7 +58,7 @@ The current engine is based on real NPVT1 exports and expanded with a bidirectio
 
 The web UI now has **one visible import area** and **one export area**, replacing the separate NPVT, JSON, links and native-format panels. Paste content or select/drop multiple files; detection uses **file contents**, not just extensions. The output dropdown automatically shows only formats that the current inputs can actually produce without failing a verified mapping.
 
-Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v0/v1 and v5 are recognized. The unified desktop/mobile workspace now supports authenticated import for authorized creator passphrases (Gen-1 and Gen-2) and attempts Gen-1 app-key imports using the existing legacy key generation; unavailable-key variants remain inspection-only. See [Phase 2 limitations](docs/NPVS_PHASE2.md).
+Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v0/v1 and v5 are recognized. The unified desktop/mobile workspace now supports authenticated import for authorized creator passphrases (Gen-1 and Gen-2) and attempts Gen-1 app-key imports using the existing legacy key generation; Gen-2 AppKey exports can also be unlocked automatically within a browser session **after** authorized per-file A16/KDK material has been supplied; no proprietary white-box derivation tables are bundled. Unknown keys remain inspection-only. See [Phase 2 limitations](docs/NPVS_PHASE2.md) and [authorized Gen-2 AppKey import](docs/NPVS_GEN2_APPKEY.md).
 
 **Usage:** open `mobile.html` on a phone or `Index.html` on desktop, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
 
@@ -260,7 +260,8 @@ The native-format file picker accepts encrypted configuration files **locally**,
 | NetMod Syna `.nm` | AES-128-ECB/PKCS#7 decoding for three published legacy key generations | Original decrypted NetMod JSON; SSH, Proxy, SNI, Payload and policy fields retained |
 | NPVS Gen-1 (v0/v1) | Passphrase unlock or compatible generation-1 app key, with AEAD verification | Verified links or original JSON if unlocked; otherwise safe inspection |
 | NPVS Gen-2 (v5) creator passphrase | Authenticated key, metadata and per-field NPF records | Verified links or original JSON after the user provides the correct passphrase |
-| NPVS v5 app key / recipient private key | Format and unlock method detection | Inspection only until the required legitimate key material/adapter is available |
+| NPVS v5 app key | Authorized per-file A16/KDK file imported locally, checked using AEAD | No universal built-in AppKey table; key material must match configId and salt |
+| NPVS v5 recipient private key | Format and unlock method detection | Inspection only; matching private key adapter not present |
 | Unknown NPVS generation | Explicit error | No fabricated profile |
 
 **Important:** The NetMod sample uses SSH/Proxy definitions, not a V2Ray configuration. The converter preserves those fields as NetMod JSON rather than inventing a VLESS/Trojan link. The sample NPVS v5 uses passphrase-based PBKDF2-HMAC-SHA256 with 600,000 iterations and authenticated encrypted fields; this version of the panel does **not** claim to decrypt it without the actual creator's passphrase.
