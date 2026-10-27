@@ -4025,29 +4025,36 @@ async function npvsPhase2Decode(input,passphrase=''){
   const version=data[4];
   if(version<=1){
     const env=npvsGen1(data,passphrase);
-    let dek;
+    let dek,unlockMethod;
+    let appError;
     if(env.app){
-      if(env.app.kdf!=='wbaes-ctr-sha256'||env.app.keyId!==1)npvsFail('unsupported app-key generation');
-      if(typeof ctrCrypt!=='function')npvsFail('legacy key generation is unavailable');
-      const salt=npvsB64(env.app.salt),wrap=npvsB64(env.app.wrap);
-      if(salt.length!==16||wrap.length!==60)npvsFail('bad Gen-1 app-key parameters');
-      const stream=ctrCrypt(salt,new Uint8Array(16));
-      const source=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v1 '),stream);
-      const kdk=new Uint8Array(await crypto.subtle.digest('SHA-256',source));
-      dek=npvsOpen(kdk,wrap.subarray(0,12),wrap.subarray(12),salt);
-    }else{
+      try{
+        if(env.app.kdf!=='wbaes-ctr-sha256'||env.app.keyId!==1)npvsFail('unsupported app-key generation');
+        if(typeof ctrCrypt!=='function')npvsFail('legacy key generation is unavailable');
+        const salt=npvsB64(env.app.salt),wrap=npvsB64(env.app.wrap);
+        if(salt.length!==16||wrap.length!==60)npvsFail('bad Gen-1 app-key parameters');
+        const stream=ctrCrypt(salt,new Uint8Array(16));
+        const source=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v1 '),stream);
+        const kdk=new Uint8Array(await crypto.subtle.digest('SHA-256',source));
+        dek=npvsOpen(kdk,wrap.subarray(0,12),wrap.subarray(12),salt);
+        unlockMethod='app-key';
+      }catch(error){appError=error;}
+    }
+    if(!dek && env.locked){
       if(!passphrase)return {status:'locked',version,unlock:'creator-passphrase'};
       if(env.locked.kdf!=='pbkdf2-hmac-sha256')npvsFail('unsupported Gen-1 passphrase KDF');
       const salt=npvsB64(env.locked.salt),wrap=npvsB64(env.locked.wrap);
       if(salt.length!==16||wrap.length!==60)npvsFail('invalid Gen-1 passphrase block');
       const kdk=await npvsPbkdf2(passphrase,salt,env.locked.iters);
       dek=npvsOpen(kdk,wrap.subarray(0,12),wrap.subarray(12),salt);
+      unlockMethod='creator-passphrase';
     }
+    if(!dek)throw appError||new Error('NPVS: a matching private key is required');
     if(dek.length!==32)npvsFail('invalid Gen-1 decrypted key length');
     const text=npvsUtf8Decode(npvsOpen(dek,env.nonce,env.sealed,env.headerBytes));
     let obj;
     try{obj=JSON.parse(text);}catch(_){obj=text;}
-    return {status:'unlocked',version,unlock:env.app?'app-key':'creator-passphrase',obj};
+    return {status:'unlocked',version,unlock:unlockMethod,obj};
   }
   if(version!==5)npvsFail('unsupported NPVS version '+version);
   const env=npvsGen2(data,passphrase);
