@@ -175,3 +175,71 @@ test('Content-first detection recognizes legacy NetMod AES-ECB even without NM e
  assert.equal(result.kind,'netmod');
  assert.equal(result.obj.SSH[0].Host,'ssh.example.org');
 });
+
+
+function npvoFixture(){
+  const enc=v=>'npvs1:'+Buffer.from(String(v)).toString('base64');
+  const rows=[];
+  for(let i=0;i<68;i++){
+    const type=i<51?3:i<58?5:i<64?6:1;
+    const p={configType:type,addedTime:1720000000000+i,remarks:enc('Fixture '+i),
+      server:enc('example.org'),serverPort:enc(type===3?'8388':'443'),
+      password:enc((type===1||type===5)?'f47ac10b-58cc-4372-a567-0e02b2c3d4e5':'synthetic-only-password'),
+      tlsAllowInsecure:false};
+    if(type===3)p.method=enc('aes-256-gcm');
+    if(type===1)Object.assign(p,{method:enc('auto'),network:enc('ws'),headerType:enc('none'),
+      security:'',host:enc('cdn.example.org'),path:enc('/ws'),insecure:false});
+    if(type===5)Object.assign(p,{method:enc('none'),network:enc(i===57?'grpc':'tcp'),security:enc('tls'),
+      sni:enc('example.org'),fingerPrint:enc('chrome'),insecure:false});
+    if(type===5&&i===57)Object.assign(p,{mode:enc('gun'),xhttpMode:enc('gun'),
+      serviceName:enc('example'),headerType:enc('none')});
+    if(type===6)Object.assign(p,{network:enc('tcp'),security:enc('tls'),
+      sni:enc('example.org'),insecure:false,headerType:enc('none')});
+    rows.push({name:'Synthetic '+i,address:'fixture.example.org',v2rayProfile:p});
+  }
+  return 'NPVO1\n'+JSON.stringify({configs:rows});
+}
+test('NPVO1 with .npvs extension maps 68 decoded marker-wrapped profiles without credential loss',()=>{
+  const src=npvoFixture();
+  const rec=call('smartRecognizeText',src,'fake.npvs');
+  assert.equal(rec.kind,'npvo');
+  assert.equal(rec.links.length,68);
+  const byProto=Object.groupBy(rec.links,l=>l.slice(0,l.indexOf('://')));
+  assert.equal(byProto.ss.length,51);
+  assert.equal(byProto.vless.length,7);
+  assert.equal(byProto.trojan.length,6);
+  assert.equal(byProto.vmess.length,4);
+  assert.ok(!rec.links.some(l=>l.includes('npvs1:')),'no encoded marker may leak into URI credentials');
+  const outputs=call('smartAvailable',[rec]);
+  assert.ok(outputs.links.split('\n').length===68);
+  const obj=JSON.parse(call('smartConvertRecords',[rec],'json'));
+  assert.equal(obj.configs.length,68);
+  assert.equal(obj.configs[0].v2rayProfile.server,'example.org');
+  assert.equal(obj.configs[0].v2rayProfile.password,'synthetic-only-password');
+  assert.equal(obj.configs[57].v2rayProfile.serviceName,'example');
+});
+test('NPVO1 malformed markers fail closed, never emit damaged proxy URIs',()=>{
+  const src=npvoFixture().replace('npvs1:', 'npvs1:????');
+  assert.throws(()=>call('smartRecognizeText',src,'bad.npvs'),/Invalid NPVO1 encoded field/);
+});
+test('NPVO1 refuses incomplete batches and retains all profiles as normalized JSON',()=>{
+  let src=npvoFixture();
+  const obj=JSON.parse(src.slice(6));
+  obj.configs[5].v2rayProfile.unknownNewTransportFlag='force-secret-setting';
+  const rec=call('smartRecognizeText','NPVO1\n'+JSON.stringify(obj),'partially-supported.npvs');
+  assert.equal(rec.kind,'npvo');
+  assert.equal(rec.links.length,0,'do not provide partial links as a complete subscription');
+  assert.equal(rec.notes.length,1);
+  const available=call('smartAvailable',[rec]);
+  assert.equal(available.links,undefined);
+  assert.ok(available.json);
+  assert.equal(JSON.parse(available.json).configs.length,68);
+});
+test('NPVO1 rejects conflicting certificate flags rather than dropping TLS options',()=>{
+  const data=JSON.parse(npvoFixture().slice(6));
+  data.configs[0].v2rayProfile.insecure=true;
+  data.configs[0].v2rayProfile.tlsAllowInsecure=false;
+  const rec=call('smartRecognizeText','NPVO1\n'+JSON.stringify(data),'flags.npvs');
+  assert.equal(rec.links.length,0);
+  assert.match(rec.notes[0],/Conflicting TLS/);
+});
