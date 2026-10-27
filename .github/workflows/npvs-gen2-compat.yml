@@ -1,0 +1,34 @@
+name: NPVS Gen-2 lookup compatibility (test-only public reference)
+on:
+  pull_request:
+    paths:
+      - "tools/npvs-browser-runtime.js"
+      - "tests/npvs-gen2-tables.test.cjs"
+      - ".github/workflows/npvs-gen2-compat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Obtain publicly licensed compatibility data (not included in release)
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://raw.githubusercontent.com/FrontierTM/Pantegnos/main/internal/modules/impl/assets/npvs/gen2_tables.bin.z' \
+            --output /tmp/npvs-gen2-reference.z
+          node -e 'const fs=require("node:fs");const z=require("node:zlib");const raw=fs.readFileSync("/tmp/npvs-gen2-reference.z");const out=z.inflateSync(raw,{maxOutputLength:749568});if(out.length!==749568)throw Error("invalid size");fs.writeFileSync("/tmp/npvs-gen2-reference.bin",out)'
+      - name: Verify public A16 vectors against local browser evaluator
+        env:
+          NPVS_COMPAT_TABLE_FILE: /tmp/npvs-gen2-reference.bin
+        run: node --test tests/npvs-gen2-tables.test.cjs
+      - name: Remove ephemeral third-party reference bytes
+        if: always()
+        run: rm -f /tmp/npvs-gen2-reference.z /tmp/npvs-gen2-reference.bin
