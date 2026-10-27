@@ -4789,7 +4789,13 @@ function smartRender(){
     SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')
+      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')+
+      (()=>{
+        const warnings=smartState.records.filter(r=>r.kind==='npvo'||r.kind==='npvs-decrypted')
+          .flatMap(r=>r.notes||[]);
+        return warnings.length?'\n'+warnings.length+' profile warning(s); verified links withheld when incomplete:\n'+
+          warnings.slice(0,3).join('\n')+(warnings.length>3?'\n… more warnings':''):'';
+      })()
     :'Ready. Files are processed entirely in this browser.';
 }
 function smartChooseTarget(){
