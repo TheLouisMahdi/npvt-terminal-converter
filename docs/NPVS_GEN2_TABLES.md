@@ -64,6 +64,18 @@ node tests/browser-smoke.cjs
 
 A dedicated `npvs-gen2-compat.yml` workflow additionally downloads a public reference table into an **ephemeral CI workspace**, inflates it, verifies published A16 vectors, then deletes it. It never commits, publishes or includes the table in downloadable application builds. Refer to the upstream license (currently AGPL-3.0) before making any third-party assets available to users.
 
+### Verified integration test results (October 28, 2026)
+
+GitHub Actions **passed**:
+
+- Published A16/KDK compatibility vectors using an ephemeral external table asset, with no bundled third-party bytes.
+- Authentic NPVS Gen-2 AppKey reference envelope from a public upstream test fixture: file is initially **locked**, then unlocks and reconstructs configuration fields after the compatible table is installed.
+- 108 native protocol and regression tests, including a new fix for a pre-existing NPVT1 bug that incorrectly stripped valid leading `+` and `/` Base64 characters.
+- Desktop, responsive mobile and standalone mobile browser smoke tests; generated-mobile consistency; Xray, sing-box and Mihomo validations.
+- The real-format NPF body includes a **32-byte post-record trailer**. The importer now accepts *only* 0-byte or 32-byte post-record lengths, rejecting any others. This trailer's independent checksum/signature semantics have **not** been established, and it is not represented as verified. AEAD tags on the wrapped key, metadata and each field remain mandatory.
+
+These checks prove interoperability with **one public, real-format AppKey fixture**. They do not prove that every current NPV Tunnel build, future generation or unsupported protocol variant works.
+
 ### Required acceptance gates before production merge
 
 - Green unit, browser-smoke and table-compatibility CI checks.
