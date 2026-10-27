@@ -49,7 +49,7 @@ test('stale table import cannot reinstall key data after reset',async()=>{
   assert.equal(call('npvsHasGen2Key(new Uint8Array(16),new Uint8Array(16))'),false);
 });
 
-test('published compatibility vectors: optional locally supplied legal table asset',()=>{
+test('published compatibility vectors: optional locally supplied legal table asset',async()=>{
   const name=process.env.NPVS_COMPAT_TABLE_FILE;
   if(!name){return;}
   const data=new Uint8Array(fs.readFileSync(name));
@@ -70,6 +70,11 @@ test('published compatibility vectors: optional locally supplied legal table ass
   assert.equal(call('npvsHasGen2Key(new Uint8Array(16),new Uint8Array(16))'),true);
   call('npvsClearGen2Keys()');
   assert.equal(call('npvsHasGen2Key(new Uint8Array(16),new Uint8Array(16))'),false);
+  const compressed=require('node:zlib').deflateSync(Buffer.from(data));
+  const file={size:compressed.length,arrayBuffer:async()=>Uint8Array.from(compressed).buffer};
+  assert.equal(await call('npvsReadGen2TableFile(f)',{f:file}),true);
+  assert.equal(call('npvsHasGen2Key(new Uint8Array(16),new Uint8Array(16))'),true);
+  call('npvsClearGen2Keys()');
 });
 
 test('published authorized Gen-2 v5 AppKey fixture decrypts only after compatible table import',async()=>{
