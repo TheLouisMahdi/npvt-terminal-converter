@@ -77,6 +77,34 @@ async function run(){
       const download=page.waitForEvent('download');
       await page.locator('#smartDownload').click();
       assert.match((await download).suggestedFilename(),/\.yaml$/);
+      // A .npvs suffix can contain an open NPVO1 payload with encoded npvs1 fields.
+      const marker=value=>'npvs1:'+Buffer.from(value).toString('base64');
+      const openProfiles=Array.from({length:68},(_,n)=>{
+        const t=n<51?3:n<58?5:n<64?6:1;
+        const p={configType:t,remarks:marker('Synthetic '+n),server:marker('example.org'),
+          serverPort:marker(t===3?'8388':'443'),password:marker(t===1||t===5?uuid:'demo-password'),
+          tlsAllowInsecure:false};
+        if(t===3)p.method=marker('aes-256-gcm');
+        if(t===5)Object.assign(p,{method:marker('none'),network:marker('tcp'),
+          security:marker('tls'),sni:marker('example.org'),insecure:false});
+        if(t===6)Object.assign(p,{network:marker('tcp'),security:marker('tls'),
+          sni:marker('example.org'),insecure:false});
+        if(t===1)Object.assign(p,{method:marker('auto'),network:marker('ws'),security:'',
+          host:marker('cdn.example.org'),path:marker('/ws'),insecure:false});
+        return {name:'Synthetic '+n,address:'fixture.example.org',v2rayProfile:p};
+      });
+      const openText='NPVO1\n'+JSON.stringify({configs:openProfiles});
+      await page.locator('#smartFiles').setInputFiles({
+        name:'looks-encrypted.npvs',mimeType:'application/octet-stream',
+        buffer:Buffer.from(openText)});
+      await waitSource('NPVO1 open NPV export');
+      assert.equal((await available()).includes('links'),true);
+      await page.locator('#smartTarget').selectOption('links');
+      const openLinks=(await page.locator('#smartOutput').inputValue()).trim().split('\n');
+      assert.equal(openLinks.length,68,'all 68 configurations must be represented');
+      assert.ok(openLinks.every(x=>!x.includes('npvs1:')));
+      assert.equal((await available()).includes('json'),true,'lossless decoded JSON must remain exportable');
+
       const fake={SSH:[{Host:'ssh.example.org',Port:22}],Proxy:[],Payload:{Value:'GET /'}};
       const encrypt=crypto.createCipheriv('aes-128-ecb',Buffer.from('<n3t5yn4^n3tm0d>'),null);
       const nm=Buffer.concat([encrypt.update(JSON.stringify(fake)),encrypt.final()]).toString('base64');
