@@ -95,6 +95,40 @@ async function run(){
       await page.locator('#smartTarget').selectOption('inspection');
       const info=JSON.parse(await page.locator('#smartOutput').inputValue());
       assert.equal(info[0].unlock,'creator-passphrase');
+
+      // Phase 2: importing authorized NPVS passphrase exports must emit actual links.
+      const passphrase='browser-fixture-only',salt=crypto.randomBytes(16),dek=crypto.randomBytes(32);
+      const derived=crypto.pbkdf2Sync(passphrase,salt,500,32,'sha256'),wrapNonce=crypto.randomBytes(12),bodyNonce=crypto.randomBytes(12);
+      function sealNpvs(key,nonce,plain,aad){
+        const cipher=crypto.createCipheriv('chacha20-poly1305',key,nonce,{authTagLength:16});
+        cipher.setAAD(aad,{plaintextLength:plain.length});
+        return Buffer.concat([cipher.update(plain),cipher.final(),cipher.getAuthTag()]);
+      }
+      function u32(n){const b=Buffer.alloc(4);b.writeUInt32BE(n);return b;}
+      const wrapped=Buffer.concat([wrapNonce,sealNpvs(derived,wrapNonce,dek,salt)]);
+      const header=Buffer.from(JSON.stringify({passphrase:{kdf:'pbkdf2-hmac-sha256',iters:500,
+        salt:salt.toString('base64url'),wrap:wrapped.toString('base64url')}}));
+      const profile=Buffer.from(JSON.stringify({configs:[{name:'Synthetic VLESS',v2rayProfile:{
+        configType:5,server:'example.org',serverPort:'443',password:uuid,method:'none'}}]}));
+      const sealed=sealNpvs(dek,bodyNonce,profile,header);
+      const protectedFile=Buffer.concat([Buffer.from('NPVS'),Buffer.from([1]),u32(header.length),
+        header,bodyNonce,u32(sealed.length),sealed,Buffer.alloc(64)]);
+      await page.locator('#smartFiles').setInputFiles({name:'authorized.npvs',
+        mimeType:'application/octet-stream',buffer:protectedFile});
+      await waitSource('locked');
+      assert.deepEqual(await available(),['inspection']);
+      await page.locator('#smartPassphrase').fill(passphrase);
+      await page.locator('#smartUnlock').click();
+      await waitSource('authenticated');
+      assert.ok((await available()).includes('links'));
+      await page.locator('#smartTarget').selectOption('links');
+      assert.match(await page.locator('#smartOutput').inputValue(),/vless:\/\//);
+      await page.locator('#smartPassphrase').fill('invalid');
+      await page.locator('#smartUnlock').click();
+      await waitSource('authentication failed');
+      assert.equal((await available()).includes('links'),false);
+      await page.locator('#smartPassphrase').fill('');
+
       await page.locator('#smartFiles').setInputFiles([
         {name:'one.txt',mimeType:'text/plain',buffer:Buffer.from(vless)},
         {name:'two.txt',mimeType:'text/plain',buffer:Buffer.from(hy2)}

@@ -58,7 +58,7 @@ The current engine is based on real NPVT1 exports and expanded with a bidirectio
 
 The web UI now has **one visible import area** and **one export area**, replacing the separate NPVT, JSON, links and native-format panels. Paste content or select/drop multiple files; detection uses **file contents**, not just extensions. The output dropdown automatically shows only formats that the current inputs can actually produce without failing a verified mapping.
 
-Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v5 encrypted files are recognized, but without their real secret only safe header inspection is possible.
+Supported current categories include VLESS, VMess, Trojan, Shadowsocks/SS2022, SOCKS, AnyTLS, Hysteria2/Realm/Gecko, TUIC, TrustTunnel deep links, Mihomo/Clash YAML/JSON, WireGuard/AmneziaWG INI, Xray/sing-box JSON, legacy NPVT1, open NPVO1 and NetMod NM. NPVS v0/v1 and v5 are recognized. The unified desktop/mobile workspace now supports authenticated import for authorized creator passphrases (Gen-1 and Gen-2) and attempts Gen-1 app-key imports using the existing legacy key generation; unavailable-key variants remain inspection-only. See [Phase 2 limitations](docs/NPVS_PHASE2.md).
 
 **Usage:** open `mobile.html` on a phone or `Index.html` on desktop, paste input or drag in up to 80 files (1 MB each), review detected types, select an available output format, then copy or download. A missing output option means that no verified, non-lossy conversion route is currently implemented.
 
@@ -258,16 +258,18 @@ The native-format file picker accepts encrypted configuration files **locally**,
 | Input | Status | Output |
 | --- | --- | --- |
 | NetMod Syna `.nm` | AES-128-ECB/PKCS#7 decoding for three published legacy key generations | Original decrypted NetMod JSON; SSH, Proxy, SNI, Payload and policy fields retained |
-| NPV Tunnel `.npvs` binary v5 | Header, unlock method, and encrypted length detection | Actionable status only; no decrypted config until the authorized creator passphrase or required key is available |
-| Other NPVS generations | Not implemented | Explicit version or malformed-file error |
+| NPVS Gen-1 (v0/v1) | Passphrase unlock or compatible generation-1 app key, with AEAD verification | Verified links or original JSON if unlocked; otherwise safe inspection |
+| NPVS Gen-2 (v5) creator passphrase | Authenticated key, metadata and per-field NPF records | Verified links or original JSON after the user provides the correct passphrase |
+| NPVS v5 app key / recipient private key | Format and unlock method detection | Inspection only until the required legitimate key material/adapter is available |
+| Unknown NPVS generation | Explicit error | No fabricated profile |
 
 **Important:** The NetMod sample uses SSH/Proxy definitions, not a V2Ray configuration. The converter preserves those fields as NetMod JSON rather than inventing a VLESS/Trojan link. The sample NPVS v5 uses passphrase-based PBKDF2-HMAC-SHA256 with 600,000 iterations and authenticated encrypted fields; this version of the panel does **not** claim to decrypt it without the actual creator's passphrase.
 
-To use: open workflow **05 Native formats**, select the local `.nm` file, and copy or download the recovered JSON. Selecting a `.npvs` file checks its envelope and explains why the content remains locked. Source files and decrypted output are **never added to GitHub test fixtures**.
+To use: open workflow **05 Native formats**, select the local `.nm` file, and copy or download the recovered JSON. To use NPVS: open the **unified converter** on desktop or mobile and choose an NPVS file. When the file requires an authorized creator passphrase, enter it in the optional local password field and press **Unlock selected files**. Successful AEAD authentication feeds the existing share-link converter. The legacy Native formats tab still provides inspection only. Source files and decrypted output are **never added to GitHub test fixtures**.
 
-Implementation tests use only artificial NetMod payloads and synthetic NPVS headers. They do not publish uploaded configurations or credential material.
+Implementation tests use synthetic NetMod payloads and synthetic NPVS encrypted containers; real-world import compatibility and creator signature validation have not yet been verified. They do not publish uploaded configurations or credential material.
 
-Related formats and implementation notes: [Native formats](docs/NATIVE_FORMATS.md). A third-party reference implementation is [Pantegnos](https://github.com/FrontierTM/Pantegnos) (AGPL-3.0); no source code or assets from that project are incorporated.
+Related formats and implementation notes: [Native formats](docs/NATIVE_FORMATS.md), [NPVS Phase 1](docs/NPVS_PHASE1.md), and [NPVS Phase 2](docs/NPVS_PHASE2.md). A third-party reference implementation is [Pantegnos](https://github.com/FrontierTM/Pantegnos) (AGPL-3.0); no source code or assets from that project are incorporated.
 
 ---
 
