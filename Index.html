@@ -4701,8 +4701,11 @@ function smartConvertRecords(records,target){
     return JSON.stringify(records.map(r=>({name:r.name,format:r.label,content:r.text})),null,2);
   }
   if(target==='links'||target==='subscription'||target==='npvt'){
-    const links=records.flatMap(smartSourceLinks);
-    if(!links.length)throw new Error('No share links available');
+    // Locked encrypted files are visible in the source panel but cannot contribute
+    // decrypted links. Export verified successes only; warn prominently in status.
+    const sources=target==='npvt'?records:records.filter(r=>r.kind!=='npvs');
+    const links=sources.flatMap(smartSourceLinks);
+    if(!links.length)throw new Error('No unlocked share links available');
     const unique=[...new Set(links)];
     if(target==='npvt'){
       if(!records.every(r=>r.kind==='links'||r.kind==='subscription'))
@@ -4881,7 +4884,9 @@ function smartRender(){
     SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')+
+      (smartState.records.some(r=>r.kind==='npvs')?
+        '\n'+smartState.records.filter(r=>r.kind==='npvs').length+
+        ' locked NPVS file(s). Decoded exports include successfully unlocked sources only; locked items remain listed above.':'')+
       (()=>{
         const warnings=smartState.records.filter(r=>r.kind==='npvo'||r.kind==='npvs-decrypted')
           .flatMap(r=>r.notes||[]);
