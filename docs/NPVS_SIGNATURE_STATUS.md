@@ -1,39 +1,34 @@
-# NPVS Gen-2 Outer Creator Signature: Verification Status
+# NPVS Creator Signature: Current Trust Boundary
 
-Date: 2026-10-28
-Status: **UNVERIFIED** — do not claim creator identity, file signer or trusted publisher.
+**Status:** Outer creator signature **not independently verified**. Updated October 2026.
 
-## What has been established
+## What can be trusted
 
-A publicly published, test-only NPVS Gen-2 AppKey fixture contains:
-- A 33-byte compressed creator public key beginning with `0x02` or `0x03`, structurally consistent with a secp256k1 public key.
-- A trailing 64-byte signature-like block.
-- Successful authenticated key unwrap, metadata decrypt and per-field ChaCha20-Poly1305 authentication.
+The NPVS Gen-1/Gen-2 decoders verify the applicable authenticated encryption (AEAD) tags when a valid passphrase or authorized AppKey material is provided. For Gen-2, the wrapped DEK, sealed metadata and NPF record fields must pass their respective checks. This prevents the converter from accepting corrupted ciphertext or an incorrect passphrase as decrypted plaintext.
 
-Those facts do **not** identify the signature algorithm, canonical signed message, message digest, or sender trust anchor.
+**But AEAD authentication does not identify the publisher.** In Gen-2 reference data, the header includes a 33-byte compressed creator-public-key-like field, and the envelope ends with a 64-byte signature-like field. The exact signed message, signer scheme, hashing rule and external trust anchor have **not** been established.
 
-## Diagnostic performed
+Accordingly, the application deliberately labels unlocked files:
 
-A dedicated **non-enforcing** test (`tests/npvs-signature-diagnostic.cjs`) used Node's native secp256k1 ECDSA public-key verifier with 64-byte IEEE P1363 `r || s` input and multiple possible envelope/payload message regions. Several common message hashes were also tested.
+> AEAD verified (creator signature not verified)
 
-**Outcome:** No tested standard signature/message-scope combination verified. This does *not* establish a corrupt file; it indicates the canonical signed message and/or cryptographic scheme is still unknown.
+and marks structural inspections with `creatorSignature: unverified`. It does **not** display “trusted creator” or “verified publisher.”
 
-The diagnostic uses only a published upstream fixture downloaded to a temporary CI directory. No user's credentials or test file is added to GitHub.
+## Remaining work before claiming signature verification
 
-## Required before enabling creator-signature status
+1. Obtain an authoritative signing specification or a test vector with a known signing key, message and verified signature.
+2. Establish the exact canonical byte representation, signature algorithm and digest, if any.
+3. Implement a positive verifier and tamper-negative tests for the actual format.
+4. Establish a separate **trust policy**: validating a signature using a public key embedded in an untrusted file is not sufficient to establish a trusted identity.
+5. Independently review cryptographic code and verify negative cases against actual authorized exports.
 
-1. Obtain a verified format document or legitimate known signer/signed-message test vector.
-2. Identify signature scheme, exact byte-level canonical message and public-key encoding.
-3. Implement deterministic signature verification and require a failing result for altered signed content.
-4. Distinguish **mathematically valid self-signature** from a **trusted publisher**. The latter requires a separately authenticated public-key fingerprint/trust store, not a public key merely embedded in the same untrusted file.
-5. Validate with authentic creator signatures, negative tests, and dedicated security review.
+A **diagnostic, non-enforcing** tool exists at `tests/npvs-signature-diagnostic.cjs`. It tries plausible ECDSA/secp256k1 message regions on an upstream public fixture and found no supported match. That does not prove a bad file; it only means the chosen signing interpretation has not been confirmed. This diagnostic runs on ephemeral public CI input and is **not** a successful signature validation test.
 
-Until then, **outer signature cannot be verified**. The browser UI explicitly says `AEAD verified (creator signature not verified)` on decrypted content and inspection explicitly marks `creatorSignature: unverified`. This avoids the earlier misleading generic `authenticated` label.
+## Do not conflate unrelated validation
 
-## Separate from the supplied test sample
+- A decoded **NPVO1** open JSON export has no encrypted Gen-2 creator-signature verification requirement. Detect file contents, not `.npvs` extensions.
+- A successful Gen-2 **AppKey** table-vector test proves compatibility with reference key derivation/authentication, **not** identity verification.
+- Valid **share links** prove representable profile syntax, **not** reachable servers or a genuine configuration publisher.
+- Unknown creator passphrases and missing recipient private keys remain inaccessible.
 
-The user's uploaded file is an **open NPVO1 JSON export**, even though it ends in `.npvs`. It contains no Gen-2 outer creator signature. Its 68 valid share-link mappings do not prove Gen-2 signature support or universal NPVS decryption.
-
-## Security note
-
-No unknown creator passphrase, unavailable recipient secret or incompatible AppKey may be bypassed merely by recognizing a file format. Never treat a successful parse, URI generation or payload AEAD tag as proof of publisher identity.
+See [NPVS formats and authenticated import](NPVS.md) for supported methods and [Gen-2 lookup tables](NPVS_GEN2_TABLES.md) for external asset constraints.
