@@ -243,3 +243,19 @@ test('NPVO1 rejects conflicting certificate flags rather than dropping TLS optio
   assert.equal(rec.links.length,0);
   assert.match(rec.notes[0],/Conflicting TLS/);
 });
+
+
+test('Mixed NPVS batches expose only verified successes and preserve locked source visibility',()=>{
+  const unlocked={kind:'npvs-decrypted',name:'ok.npvs',label:'NPVS v1 · AEAD verified',
+    links:[vless],text:'{"configs":[]}',obj:{configs:[]},notes:[]};
+  const locked={kind:'npvs',name:'locked.npvs',label:'NPVS v5 · locked',
+    meta:{format:'NPVS',encrypted:true,reason:'None of the provided keys authenticated'},links:[]};
+  const options=call('smartAvailable',[[unlocked,locked]]);
+  assert.equal(options.links,vless,'a locked source must not hide successfully decrypted links');
+  assert.equal(options.subscription.includes('vless://'),false,'subscription is base64 encoded');
+  assert.equal(options.npvt,undefined,'legacy writer must not misrepresent a mixed batch');
+  assert.equal(options.archive,undefined,'encrypted file cannot be exported as readable archive');
+  const allLocked=call('smartAvailable',[[locked]]);
+  assert.equal(allLocked.links,undefined,'no fabricated success when none unlocked');
+  assert.ok(allLocked.inspection);
+});
