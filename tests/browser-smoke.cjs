@@ -156,7 +156,7 @@ async function run(){
       assert.equal(await page.locator('#smartPasswordDialog').isVisible(),true);
       await page.locator('#smartPasswordTxt').setInputFiles({
         name:'known-values.txt',mimeType:'text/plain',
-        buffer:Buffer.from('wrong-known-value\\n'+passphrase+'\\nwrong-known-value\\n')
+        buffer:Buffer.from('wrong-known-value\n'+passphrase+'\nwrong-known-value\n')
       });
       await page.waitForFunction(()=>document.getElementById('smartPasswordList').value.includes('wrong-known-value'));
       await page.locator('#smartPasswordApply').click();
