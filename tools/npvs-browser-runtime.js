@@ -1,6 +1,52 @@
 /* NPVS Phase 2: standalone offline authenticated importer. Inlined into Index.html. */
 const NPVS_PHASE2_MAX = 1048576;
 const npvsUtf8 = new TextEncoder();
+
+// Authorized key material is session-only. No third-party white-box tables are bundled.
+// A16 is generated from a specific Gen-2 envelope salt by an authorized key provider.
+// Each entry is scoped to both configId and salt, never a universal bypass.
+const npvsGen2Keys=new Map();
+function npvsHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
+function npvsParseHex(value,size){
+  if(typeof value!=='string'||value.length!==size*2||!/^[0-9a-f]+$/i.test(value))
+    npvsFail('invalid authorized key-file field');
+  const bytes=new Uint8Array(size);
+  for(let i=0;i<size;i++)bytes[i]=parseInt(value.slice(i*2,i*2+2),16);
+  return bytes;
+}
+function npvsInstallGen2Keys(document){
+  if(!document||typeof document!=='object'||Array.isArray(document)||
+     document.format!=='npvs-gen2-keys-v1'||!Array.isArray(document.entries)||
+     !document.entries.length||document.entries.length>32)
+    npvsFail('invalid authorized NPVS AppKey key-file format');
+  const incoming=new Map();
+  for(const entry of document.entries){
+    if(!entry||typeof entry!=='object'||Array.isArray(entry))
+      npvsFail('invalid key-file entry');
+    const id=npvsParseHex(entry.configId,16),salt=npvsParseHex(entry.salt,16);
+    const hasA16=entry.a16!==undefined,hasKdk=entry.kdk!==undefined;
+    if(hasA16===hasKdk)npvsFail('each key-file entry requires exactly one A16 or KDK');
+    const material=hasA16?npvsParseHex(entry.a16,16):npvsParseHex(entry.kdk,32);
+    const index=npvsHex(id)+':'+npvsHex(salt);
+    if(incoming.has(index))npvsFail('duplicate authorized key-file entry');
+    incoming.set(index,{material,type:hasA16?'a16':'kdk'});
+  }
+  // Validate all input before mutating the current keyring.
+  for(const [key,value] of incoming)npvsGen2Keys.set(key,value);
+  return npvsGen2Keys.size;
+}
+function npvsClearGen2Keys(){npvsGen2Keys.clear();}
+function npvsHasGen2Key(configId,salt){
+  return npvsGen2Keys.has(npvsHex(configId)+':'+npvsHex(salt));
+}
+async function npvsGen2AppKeyKdk(env){
+  const item=npvsGen2Keys.get(npvsHex(env.configID)+':'+npvsHex(env.salt));
+  if(!item)return null;
+  if(item.type==='kdk')return item.material;
+  const data=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v2 '),item.material,env.configID);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256',data));
+}
+
 function npvsFail(reason){throw new Error('NPVS: '+reason);}
 function npvsJoin(...arrays){const out=new Uint8Array(arrays.reduce((n,a)=>n+a.length,0));let o=0;for(const a of arrays){out.set(a,o);o+=a.length;}return out;}
 function npvsBE16(x){return new Uint8Array([x>>>8,x&255]);}
@@ -167,9 +213,15 @@ async function npvsPhase2Decode(input,passphrase=''){
   if(version!==5)npvsFail('unsupported NPVS version '+version);
   const env=npvsGen2(data,passphrase);
   if(env.method===0)return {status:'locked',version,unlock:'recipient-private-key'};
-  if(env.method===2)return {status:'locked',version,unlock:'app-key',reason:'Gen-2 app-key tables unavailable'};
-  if(!passphrase)return {status:'locked',version,unlock:'creator-passphrase'};
-  const kdk=await npvsPbkdf2(passphrase,env.salt,env.iterations);
+  let kdk;
+  if(env.method===2){
+    kdk=await npvsGen2AppKeyKdk(env);
+    if(!kdk)return {status:'locked',version,unlock:'app-key',
+      reason:'Matching authorized Gen-2 key material is not loaded'};
+  }else{
+    if(!passphrase)return {status:'locked',version,unlock:'creator-passphrase'};
+    kdk=await npvsPbkdf2(passphrase,env.salt,env.iterations);
+  }
   const dek=npvsOpen(kdk,env.wrap.subarray(0,12),env.wrap.subarray(12),env.salt);
   if(dek.length!==32)npvsFail('invalid Gen-2 decrypted key length');
   const metaKey=await npvsHKDF(dek,env.nonce,npvsUtf8.encode('NPVS-v5/metadata'));
@@ -185,5 +237,5 @@ async function npvsPhase2Decode(input,passphrase=''){
   let doc;
   try{doc=JSON.parse(npvsUtf8Decode(fields.get(65535)));}catch(_){npvsFail('invalid authenticated config sentinel table');}
   if(!doc||!Array.isArray(doc.configs)||!doc.configs.length)npvsFail('empty authenticated config table');
-  return {status:'unlocked',version,unlock:'creator-passphrase',obj:{configs:doc.configs.map(cfg=>npvsSubstitute(cfg,fields))}};
+  return {status:'unlocked',version,unlock:env.method===2?'app-key':'creator-passphrase',obj:{configs:doc.configs.map(cfg=>npvsSubstitute(cfg,fields))}};
 }

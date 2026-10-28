@@ -129,6 +129,48 @@ async function run(){
       assert.equal((await available()).includes('links'),false);
       await page.locator('#smartPassphrase').fill('');
 
+      // Gen-2 app-key: one authorized key-file import, then password-free conversion.
+      const gen2Id=crypto.randomBytes(16),gen2Salt=crypto.randomBytes(16),a16=crypto.randomBytes(16),
+        gen2Dek=crypto.randomBytes(32),gen2Nonce=crypto.randomBytes(12),gen2WrapNonce=crypto.randomBytes(12);
+      const gen2Kdk=crypto.createHash('sha256').update('npvtunnel/appkey/v2 ').update(a16).update(gen2Id).digest();
+      const gen2Wrap=Buffer.concat([gen2WrapNonce,sealNpvs(gen2Kdk,gen2WrapNonce,gen2Dek,gen2Salt)]);
+      const b16=n=>{const b=Buffer.alloc(2);b.writeUInt16BE(n);return b;};
+      const gen2Prefix=Buffer.concat([Buffer.from([1]),gen2Id,crypto.randomBytes(33),
+        Buffer.from([2]),b16(0),b16(2),gen2Salt,gen2Wrap]);
+      const gen2MetaKey=Buffer.from(crypto.hkdfSync('sha256',gen2Dek,gen2Nonce,'NPVS-v5/metadata',32));
+      const gen2Meta=sealNpvs(gen2MetaKey,gen2Nonce,Buffer.from('{"policy":{}}'),gen2Prefix);
+      const gen2Header=Buffer.concat([gen2Prefix,u32(gen2Meta.length),gen2Meta]);
+      const gen2ContentId=crypto.randomBytes(32),gen2Seq=65535;
+      const config=Buffer.from(JSON.stringify({configs:[{name:'Gen2',v2rayProfile:{
+        configType:5,server:'example.org',serverPort:443,password:uuid,method:'none'}}]}));
+      const fieldInfo=Buffer.concat([Buffer.from('NPV-fields-v1/field/'),b16(gen2Seq)]);
+      const fieldKey=Buffer.from(crypto.hkdfSync('sha256',gen2Dek,gen2ContentId,fieldInfo,32));
+      const fieldAad=Buffer.concat([Buffer.from('NPV-fields-v1/record/'),gen2ContentId,b16(gen2Seq),u32(config.length)]);
+      const fieldBlob=sealNpvs(fieldKey,Buffer.alloc(12),config,fieldAad);
+      const gen2Body=Buffer.concat([Buffer.from([78,80,70,1]),gen2ContentId,b16(1),
+        b16(gen2Seq),b16(0),b16(fieldBlob.length),fieldBlob]);
+      const gen2File=Buffer.concat([Buffer.from('NPVS'),Buffer.from([5]),u32(gen2Header.length),
+        gen2Header,gen2Nonce,u32(gen2Body.length),gen2Body,Buffer.alloc(64)]);
+      await page.locator('#smartFiles').setInputFiles({name:'unlocked-with-key.npvs',
+        mimeType:'application/octet-stream',buffer:gen2File});
+      await waitSource('locked');
+      assert.equal((await available()).includes('links'),false);
+      const authorized={format:'npvs-gen2-keys-v1',entries:[{
+        configId:gen2Id.toString('hex'),salt:gen2Salt.toString('hex'),a16:a16.toString('hex')}]};
+      await page.locator('#smartAppKeyFile').setInputFiles({
+        name:'authorized-keys.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(authorized))});
+      await waitSource('authenticated');
+      assert.ok((await available()).includes('links'));
+      assert.match(await page.locator('#smartAppKeyStatus').innerText(),/1 authorized key/);
+      assert.equal((await page.locator('body').innerText()).includes(a16.toString('hex')),false);
+      await page.locator('#smartTarget').selectOption('links');
+      assert.match(await page.locator('#smartOutput').inputValue(),/vless:\/\/f47ac10b/);
+      await page.locator('#smartReset').click();
+      await page.locator('#smartFiles').setInputFiles({name:'key-cleared.npvs',
+        mimeType:'application/octet-stream',buffer:gen2File});
+      await waitSource('locked');
+      assert.equal((await available()).includes('links'),false);
+
       await page.locator('#smartFiles').setInputFiles([
         {name:'one.txt',mimeType:'text/plain',buffer:Buffer.from(vless)},
         {name:'two.txt',mimeType:'text/plain',buffer:Buffer.from(hy2)}
