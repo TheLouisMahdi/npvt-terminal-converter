@@ -151,6 +151,34 @@ async function run(){
         mimeType:'application/octet-stream',buffer:protectedFile});
       await waitSource('locked');
       assert.deepEqual(await available(),['inspection']);
+      // A separate modal accepts only explicitly provided known passphrases.
+      await page.locator('#smartPasswordOpen').click();
+      assert.equal(await page.locator('#smartPasswordDialog').isVisible(),true);
+      await page.locator('#smartPasswordTxt').setInputFiles({
+        name:'known-values.txt',mimeType:'text/plain',
+        buffer:Buffer.from('wrong-known-value\\n'+passphrase+'\\nwrong-known-value\\n')
+      });
+      await page.waitForFunction(()=>document.getElementById('smartPasswordList').value.includes('wrong-known-value'));
+      await page.locator('#smartPasswordApply').click();
+      await waitSource('AEAD verified');
+      assert.match(await page.locator('#smartPasswordsSaved').innerText(),/2 known passphrases/);
+      assert.equal(await page.locator('#smartPasswordList').inputValue(),'','secret-entry field must be emptied');
+      assert.ok((await available()).includes('links'));
+      // The same supplied list should work across a batch without typing per file.
+      await page.locator('#smartFiles').setInputFiles([
+        {name:'authorized-a.npvs',mimeType:'application/octet-stream',buffer:protectedFile},
+        {name:'authorized-b.npvs',mimeType:'application/octet-stream',buffer:protectedFile}
+      ]);
+      await page.waitForFunction(()=>document.getElementById('smartDetected').textContent.includes('authorized-b.npvs'));
+      assert.match(await page.locator('#smartDetected').innerText(),/AEAD verified/);
+      await page.locator('#smartPasswordOpen').click();
+      assert.equal(await page.locator('#smartPasswordList').inputValue(),'');
+      await page.locator('#smartPasswordForget').click();
+      await page.locator('#smartPasswordClose').click();
+      await page.locator('#smartFiles').setInputFiles({name:'authorized.npvs',
+        mimeType:'application/octet-stream',buffer:protectedFile});
+      await waitSource('locked');
+      assert.match(await page.locator('#smartPasswordsSaved').innerText(),/0 known passphrases/);
       await page.locator('#smartPassphrase').fill(passphrase);
       await page.locator('#smartUnlock').click();
       await waitSource('AEAD verified');
