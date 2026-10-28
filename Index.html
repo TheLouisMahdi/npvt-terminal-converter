@@ -4789,6 +4789,10 @@ $('smartPasswordOpen').addEventListener('click',()=>{
   $('smartPasswordDialog').showModal();
 });
 $('smartPasswordClose').addEventListener('click',()=>$('smartPasswordDialog').close());
+$('smartPasswordDialog').addEventListener('close',()=>{
+  $('smartPasswordList').value='';
+  $('smartPasswordTxt').value='';
+});
 $('smartPasswordChooseTxt').addEventListener('click',()=>$('smartPasswordTxt').click());
 $('smartPasswordTxt').addEventListener('change',async e=>{
   const file=e.target.files&&e.target.files[0];
@@ -4823,6 +4827,7 @@ $('smartPasswordForget').addEventListener('click',()=>{
   smartPasswordStop=true;
   smartSavedPassphrases=[];
   $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
   $('smartPasswordsSaved').textContent='0 known passphrases · session only';
   $('smartPasswordProgress').textContent='Passphrase list forgotten from session state.';
 });
@@ -5057,6 +5062,7 @@ $('smartReset').addEventListener('click',()=>{
   smartPasswordStop=true;
   smartSavedPassphrases=[];
   $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
   $('smartPasswordsSaved').textContent='0 known passphrases · session only';
   $('smartPasswordProgress').textContent='No passphrases saved for this session';
   npvsClearGen2Keys();
