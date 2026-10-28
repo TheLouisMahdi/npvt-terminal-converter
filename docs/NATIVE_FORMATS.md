@@ -1,6 +1,6 @@
 # Native Mihomo and WireGuard format adapters
 
-The **Mihomo / Clash YAML and AmneziaWG** panel works entirely offline in the existing standalone `Index.html`.
+The unified **Universal converter** workspace in standalone `Index.html` and `mobile.html` handles supported Mihomo/Clash YAML, native JSON, WireGuard/AmneziaWG client INI and TrustTunnel deep links entirely offline. There is no separate native-format panel in the current UI.
 
 ## Supported native formats
 
@@ -15,10 +15,10 @@ The **Mihomo / Clash YAML and AmneziaWG** panel works entirely offline in the ex
 
 ### Workflow
 
-1. Open the native-format section of the page.
-2. Paste a `proxies:` Mihomo YAML node list, equivalent JSON, or a WireGuard `[Interface]` + `[Peer]` client INI.
-3. Choose **Mihomo YAML**, **Native JSON**, **WireGuard INI**, or **TT deep link**.
-4. Review any conversion errors. Validate the output using a matching Core before importing.
+1. Open the unified **Universal converter** workspace on desktop or mobile.
+2. Paste a `proxies:` Mihomo YAML node list, equivalent JSON, a supported `tt://?` deep link or a WireGuard `[Interface]` + `[Peer]` client INI; alternatively select a local file.
+3. Choose a currently **available** target such as **Mihomo YAML**, **Native JSON**, **WireGuard INI**, or **TT deep link**. Targets unsupported by the recognized input are intentionally absent.
+4. Review any rejection or conversion warning. Validate the output with a matching Core before deployment; syntax-valid output is not evidence of server reachability.
 
 The YAML importer deliberately implements a **restricted subset**: plain nested maps, sequences, quoted/unquoted scalar values and simple inline arrays/maps. YAML anchors, aliases, merge keys, tags, folded/literal blocks and templates are **not supported** and must be processed with a full YAML parser outside this panel. Unsupported constructs are rejected rather than guessed. The native JSON/YAML round-trip keeps all fields for supported nodes, including unknown vendor extension fields, but Mihomo may reject fields it does not recognize.
 
