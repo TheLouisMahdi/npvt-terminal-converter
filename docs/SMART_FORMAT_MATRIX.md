@@ -1,8 +1,8 @@
 # Smart Converter: detected input → compatible output
 
-Updated October 13, 2026. This table describes **implemented, test-covered conversions**, not claims of universal protocol interoperability.
+Updated October 28, 2026. This matrix describes **implemented, test-covered conversions** rather than universal protocol interoperability. Read the [NPVS guide](NPVS.md) for key requirements and format-specific authentication.
 
-The application is still a fully local, single-file `Index.html`. It has **one visible input workspace** (paste, click-to-select, or drag/drop up to 80 files, each at most 1 MB) and **one output workspace** (format selector, copy, download). Existing parsers continue to run behind this UI.
+The application ships fully local, standalone `Index.html` and `mobile.html` builds. The UI has **one visible input workspace** (paste, click-to-select, or drag/drop up to 80 files, each at most 1 MB) and **one output workspace** (format selector, copy, download). Existing parsers continue to run behind this UI.
 
 ## Detection and output matrix
 
@@ -16,11 +16,11 @@ The application is still a fully local, single-file `Index.html`. It has **one v
 | Xray / V2Ray / NPV JSON | Original JSON, share URI (only when verified), Xray JSON | Unmappable extra fields block lossy short URI conversion |
 | sing-box JSON | Original JSON, sing-box JSON, supported share URI | Unsupported native-only fields block shortened URI output |
 | NPVT1 (legacy encrypted container) | Supported link extraction and Base64 link subscriptions | Rewriting NPVT1 from extracted links would lose source metadata |
-| NPVO1 (open export) | Known share URIs and Base64 subscription | Repacking without loss not yet proven |
+| NPVO1 (open export, even with `.npvs` extension) | Strictly decoded `npvs1:` fields, supported share URIs/Base64 subscription and original decoded JSON | If a single profile is unsupported, all links are withheld rather than presenting an incomplete batch |
 | NetMod Syna encrypted `.nm` / same blob with an unknown extension | Recovered **original** NetMod SSH/Proxy JSON | No fabricated VLESS/VMess links |
-| NPVS Gen-1 creator-passphrase or generation-1 app-key | Authenticated payload with supplied password or compatible existing app-key generation | Unknown creator passphrases still require an authorized password; no universal key |
-| NPVS v5 creator-passphrase | Authenticated metadata and field records when a correct passphrase is supplied | No password-free unlock of unknown passphrases; real exports still need interoperability tests |
-| NPVS v5 app-key | Authenticated config extraction **if** a matching, authorized A16/KDK keyring entry is loaded | Without that material the file stays inspection-only; universal A16 derivation tables are not shipped |
+| NPVS Gen-1 creator-passphrase or generation-1 app-key | Authenticated payload with a known password (single input or batch dialog), or compatible legacy AppKey | Unknown creator passwords still require a valid supplied password; no universal key |
+| NPVS v5 creator-passphrase | Authenticated metadata/fields when a correct password matches; **Known passphrases · batch** automatically tests exact user-provided values | No password generation or arbitrary unknown password bypass; unsupported policy fields may prevent link export |
+| NPVS v5 app-key | Authenticated extraction with a matching authorized A16/KDK keyring **or** user-loaded compatible Gen-2 lookup tables | No tables bundled or universal AppKey unlocking; unrecognized generation stays locked |
 | NPVS v5 recipient-private-key | Inspected, nonsecret header details | Requires matching private key and adapter |
 | Generic JSON | Original JSON | No guessed proxy protocol |
 | Unsupported external URI, e.g. SSR/SSD/EHI/HAT/other | Recognition message | No fabricated conversion results |
@@ -50,13 +50,14 @@ Compatibility references:
 - Duplicate Mihomo proxy names block the merge rather than silently overwriting proxies.
 - A JSON source bundle option preserves files as text for later processing; it is **not** a native Xray/Mihomo config.
 - Native per-Core JSON and wireguard/TT outputs are restricted to one suitable source unless a batch mapping has been verified.
-- A locked NPVS file in a batch restricts the selection appropriately; encrypted content cannot be used as decrypted profile data. Authenticated, unlocked NPVS payloads may be converted using the existing mapping gates.
+- A locked NPVS file stays visible in the source report but contributes **no** decrypted credentials or links. Successfully authenticated sources in the same batch can still provide link/subscription outputs. Export does **not** claim all selected files were opened.
+- A separate **Known passphrases · batch** dialog accepts up to 128 user-provided passphrases for automatic verification of selected Gen-1/Gen-2 creator-passphrase files, with progress, stop and forget controls. The list is memory-only for that tab.
 
-## Why a password-free NPVS converter is not universal
+## NPVS authentication boundaries
 
-The supplied NPVS v5 sample uses the **creator-passphrase unlock method**, PBKDF2-HMAC-SHA256 and authenticated ChaCha20-Poly1305 encryption. Phase 2 adds verified decryption when a user supplies the correct passphrase. An unknown password cannot be bypassed merely by recognizing the format. An app-key or recipient-key variant has **different** requirements. The converter never invents passwords or represents a successful format check as successful decryption.
+NPVS Gen-1/Gen-2 creator-passphrase files use authenticated encryption and require a correct creator password. The converter can check **existing, supplied** passwords automatically for selected files; it does not generate or crack unknown passwords. A Gen-2 AppKey file instead requires matching authorized A16/KDK keyring material or compatible licensed lookup tables; recipient-key files require an unimplemented private-key adapter.
 
-Open NPV exports (`NPVO1`), legacy NPVT1 and certain NetMod generations can be decoded without creator passphrases because their formats differ. The format is identified from binary/text structure, not from file names alone.
+**Verified AEAD encryption is distinct from the unverified outer creator signature.** A 68-profile open NPVO1 test does not prove encrypted NPVS unlocking, and a structurally recognized file is not automatically decrypted. See [NPVS guide](NPVS.md) and [signature status](NPVS_SIGNATURE_STATUS.md).
 
 ## Research and compatibility references
 
@@ -69,7 +70,7 @@ The following existing projects were examined for supported formats and routing 
 - [Official sing-box outbound schemas](https://sing-box.sagernet.org/configuration/outbound/).
 - [Official sing-box WireGuard endpoint schema](https://sing-box.sagernet.org/configuration/endpoint/wireguard/).
 
-**Out of scope of this implementation:** importing every Surge/Loon/Quantumult X/EHI/HAT/NM generation, password-free unlocking of protected NPVS, full YAML (anchors/aliases/scripts), and server handshake verification. Those require separate documented adapters and Core/client validation fixtures.
+**Out of scope of this implementation:** importing every Surge/Loon/Quantumult X/EHI/HAT/NM generation, unlocking NPVS without its required authorized keys, full YAML (anchors/aliases/scripts), and server handshake verification. Those require separate documented adapters and Core/client validation fixtures.
 
 ## Tests
 
