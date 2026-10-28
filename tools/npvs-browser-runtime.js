@@ -35,15 +35,112 @@ function npvsInstallGen2Keys(document){
   for(const [key,value] of incoming)npvsGen2Keys.set(key,value);
   return npvsGen2Keys.size;
 }
-function npvsClearGen2Keys(){npvsGen2Keys.clear();}
+// A portable, offline evaluator for compatible Gen-2 lookup tables. The
+// application never bundles generation-specific binary data or fetches keys.
+const NPVS_GEN2_TABLE_BYTES=13*57344+4096;
+const NPVS_GEN2_SHIFT=[0,5,10,15,4,9,14,3,8,13,2,7,12,1,6,11];
+const NPVS_GEN2_CHECKS=[
+  ['000102030405060708090a0b0c0d0e0f','f659c73d8c0fa5150e3254dfe0a1106d'],
+  ['f7c7701d0117e9f1f0ce9508abb11519','9821914745243955b1bdde3b7952303e'],
+  ['c45a3c0407fcc90458a59f7b9d762617','e34dd0a6557a2a2dd41836e3d83740bc'],
+  ['2eb61dd803807ce1f73f10aa8ae97711','8eb1c4b1fa21daa7e4de7b8e4864f79a'],
+  ['00000000000000000000000000000000','4878126b14231f6f522f310686001524'],
+  ['50d72fa987791d011e5d83e3e36ea971','036ab758c7e097dc77b24b995908628a']
+];
+let npvsGen2Tables=null;
+function npvsWordBE(bytes,offset){
+  return ((bytes[offset]*0x1000000)+(bytes[offset+1]<<16)+(bytes[offset+2]<<8)+bytes[offset+3])>>>0;
+}
+function npvsNibble(word,index){
+  return (word >>> (28-index*4))&15;
+}
+function npvsGen2DeriveA16(tables,salt){
+  if(!(tables instanceof Uint8Array)||tables.length!==NPVS_GEN2_TABLE_BYTES||
+     !(salt instanceof Uint8Array)||salt.length!==16)
+    npvsFail('invalid Gen-2 lookup table dimensions or salt');
+  let state=Uint8Array.from(salt);
+  const staged=new Uint8Array(16);
+  for(let round=0;round<13;round++){
+    const roundBase=round*57344;
+    for(let pos=0;pos<16;pos++)staged[pos]=state[NPVS_GEN2_SHIFT[pos]];
+    state.set(staged);
+    for(let group=0;group<4;group++){
+      for(const side of [0x6000,0xA000]){
+        const word=new Uint32Array(4);
+        for(let column=0;column<4;column++){
+          const lookup=roundBase+side+group*0x1000+column*0x400;
+          word[column]=npvsWordBE(tables,lookup+state[group*4+column]*4);
+        }
+        for(let column=0;column<4;column++){
+          const row=roundBase+group*0x1800+column*0x600;
+          const half=new Uint8Array(2);
+          for(let pair=0;pair<2;pair++){
+            const n=2*column+pair;
+            const first=tables[row+pair*0x200+(npvsNibble(word[0],n)<<4)+npvsNibble(word[1],n)];
+            const second=tables[row+pair*0x200+0x100+(npvsNibble(word[2],n)<<4)+npvsNibble(word[3],n)];
+            if(first>15||second>15)npvsFail('incompatible Gen-2 lookup table');
+            half[pair]=(first<<4)|second;
+          }
+          const top=tables[row+0x400+half[0]],bottom=tables[row+0x500+half[1]];
+          if(top>15||bottom>15)npvsFail('incompatible Gen-2 lookup table');
+          state[group*4+column]=(top<<4)|bottom;
+        }
+      }
+    }
+  }
+  const page=13*57344;
+  return Uint8Array.from(NPVS_GEN2_SHIFT,(slot,index)=>tables[page+index*256+state[slot]]);
+}
+function npvsInstallGen2Tables(input){
+  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
+  if(bytes.length!==NPVS_GEN2_TABLE_BYTES)
+    npvsFail('Gen-2 lookup table must be exactly '+NPVS_GEN2_TABLE_BYTES+' bytes');
+  // Independently published salt/A16 compatibility vectors must ALL match.
+  // Never accept a plausible-looking but incompatible or truncated key blob.
+  for(const [salt,expected] of NPVS_GEN2_CHECKS){
+    const actual=npvsHex(npvsGen2DeriveA16(bytes,npvsParseHex(salt,16)));
+    if(actual!==expected)npvsFail('Gen-2 table compatibility self-test failed');
+  }
+  if(npvsGen2Tables)npvsGen2Tables.fill(0);
+  npvsGen2Tables=Uint8Array.from(bytes);
+  return true;
+}
+async function npvsReadGen2TableFile(file,isCurrent=()=>true){
+  if(!file||file.size>NPVS_GEN2_TABLE_BYTES+1024||!file.size)
+    npvsFail('unsupported Gen-2 table file size');
+  let bytes=new Uint8Array(await file.arrayBuffer());
+  if(bytes.length===NPVS_GEN2_TABLE_BYTES)return isCurrent()?npvsInstallGen2Tables(bytes):false;
+  if(typeof DecompressionStream!=='function')npvsFail('compressed table import unsupported by browser');
+  const reader=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+  const parts=[];let count=0;
+  try{
+    for(;;){
+      const {done,value}=await reader.read();
+      if(done)break;
+      count+=value.length;
+      if(count>NPVS_GEN2_TABLE_BYTES)npvsFail('compressed lookup table expands beyond expected size');
+      parts.push(value);
+    }
+  }finally{await reader.cancel().catch(()=>{});}
+  if(count!==NPVS_GEN2_TABLE_BYTES)npvsFail('invalid decompressed Gen-2 lookup table size');
+  const buffer=new Uint8Array(count);let off=0;
+  for(const part of parts){buffer.set(part,off);off+=part.length;}
+  return isCurrent()?npvsInstallGen2Tables(buffer):false;
+}
+function npvsClearGen2Keys(){
+  for(const item of npvsGen2Keys.values())item.material.fill(0);
+  npvsGen2Keys.clear();
+  if(npvsGen2Tables){npvsGen2Tables.fill(0);npvsGen2Tables=null;}
+}
 function npvsHasGen2Key(configId,salt){
-  return npvsGen2Keys.has(npvsHex(configId)+':'+npvsHex(salt));
+  return !!npvsGen2Tables||npvsGen2Keys.has(npvsHex(configId)+':'+npvsHex(salt));
 }
 async function npvsGen2AppKeyKdk(env){
   const item=npvsGen2Keys.get(npvsHex(env.configID)+':'+npvsHex(env.salt));
-  if(!item)return null;
-  if(item.type==='kdk')return item.material;
-  const data=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v2 '),item.material,env.configID);
+  if(!item&&!npvsGen2Tables)return null;
+  if(item&&item.type==='kdk')return item.material;
+  const a16=item?item.material:npvsGen2DeriveA16(npvsGen2Tables,env.salt);
+  const data=npvsJoin(npvsUtf8.encode('npvtunnel/appkey/v2 '),a16,env.configID);
   return new Uint8Array(await crypto.subtle.digest('SHA-256',data));
 }
 
@@ -149,8 +246,11 @@ function npvsGen2(data,passphrase){
     if(size<16||pos+6+size>body.length||seen.has(seq))npvsFail('invalid or repeated NPF record');
     seen.add(seq);rows.push({seq,sealed:body.subarray(pos+6,pos+6+size)});pos+=6+size;
   }
-  if(pos!==body.length)npvsFail('trailing NPF data');
-  return {method,iterations,salt,wrap,meta,prefix,nonce:data.subarray(bodyOff,bodyOff+12),contentID:body.subarray(4,36),rows,configID:header.subarray(1,17),passphrase};
+  // Documented Gen-2 bodies may end with a 32-byte content digest/trailer.
+  // Reject unknown trailing lengths; the per-record AEAD tags are still checked.
+  const tail=body.length-pos;
+  if(tail!==0&&tail!==32)npvsFail('unsupported NPF trailer length');
+  return {method,iterations,salt,wrap,meta,prefix,nonce:data.subarray(bodyOff,bodyOff+12),contentID:body.subarray(4,36),rows,contentTrailer:body.subarray(pos),configID:header.subarray(1,17),passphrase};
 }
 function npvsDecodeSentinels(value){
   if(typeof value!=='string')return value;

@@ -53,6 +53,22 @@ test('Hysteria2 URI offers sing-box native JSON but never legacy NPVT1',()=>{
  assert.equal(o.npvt,undefined);
  assert.equal(o.xray,undefined);
 });
+test('NPVT1 does not trim valid leading + or / Base64 bytes',()=>{
+  for(const first of [0xfb,0xff]){
+    const nonce=new Uint8Array(16);nonce[0]=first;
+    const plain='{"config":"synthetic"}';
+    ctx.npvtFixtureNonce=[...nonce];
+    ctx.npvtFixturePlain=plain;
+    const token=vm.runInContext(`(()=>{
+      const n=new Uint8Array(npvtFixtureNonce),ct=ctrCrypt(n,textToBytes(npvtFixturePlain));
+      const payload=new Uint8Array(16+ct.length);payload.set(n);payload.set(ct,16);
+      return bytesToBase64(payload);
+    })()`,ctx);
+    assert.equal(token[0],first===0xfb?'+':'/');
+    const output=call('decodeNPVTPlainChunks','NPVT1 '+token);
+    assert.equal(output[0].text,plain);
+  }
+});
 test('NPVT1 legacy import detects encrypted container from its content',()=>{
  const source=call('smartRecognizeText',vless);
  const encoded=call('smartConvertRecords',[source],'npvt');

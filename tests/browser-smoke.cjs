@@ -92,6 +92,12 @@ async function run(){
       await page.locator('#smartFiles').setInputFiles({name:'encrypted.npvs',mimeType:'application/octet-stream',buffer:binary});
       await waitSource('NPVS v5');
       assert.deepEqual(await available(),['inspection']);
+      await page.locator('#smartTableFile').setInputFiles({
+        name:'wrong-generation.bin',mimeType:'application/octet-stream',buffer:Buffer.alloc(749568)
+      });
+      await page.waitForFunction(()=>document.getElementById('smartTableStatus').textContent.includes('Table rejected'),null,{timeout:10000});
+      assert.deepEqual(await available(),['inspection'],'invalid lookup tables must not unlock NPVS');
+      assert.match(await page.locator('#smartTableStatus').innerText(),/compatibility self-test failed/);
       await page.locator('#smartTarget').selectOption('inspection');
       const info=JSON.parse(await page.locator('#smartOutput').inputValue());
       assert.equal(info[0].unlock,'creator-passphrase');
