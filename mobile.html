@@ -3786,7 +3786,7 @@ function inspectNpvsV5(bytes){
   const bodyOffset=9+headerLength;
   const bodyLength=view.getUint32(bodyOffset+12,false);
   if(bodyLength<32||bodyOffset+16+bodyLength+64!==bytes.length)throw new Error('Malformed NPVS ciphertext length');
-  return {format:'NPVS',version,unlock:method===0?'recipient-private-key':method===1?'creator-passphrase':'app-key',recipients,iterations:iterations||undefined,bytes:bytes.length,encrypted:true};
+  return {format:'NPVS',version,unlock:method===0?'recipient-private-key':method===1?'creator-passphrase':'app-key',recipients,iterations:iterations||undefined,bytes:bytes.length,encrypted:true,creatorSignature:'unverified (signing scheme and trust anchor not established)'};
 }
 
 function nativeFormatConvert(input, target){
@@ -4244,24 +4244,112 @@ async function npvsPhase2Decode(input,passphrase=''){
   if(!doc||!Array.isArray(doc.configs)||!doc.configs.length)npvsFail('empty authenticated config table');
   return {status:'unlocked',version,unlock:env.method===2?'app-key':'creator-passphrase',obj:{configs:doc.configs.map(cfg=>npvsSubstitute(cfg,fields))}};
 }
+/* Strict NPVO1 (unencrypted) import. This file is inlined into both HTML entrypoints. */
+function npvoDecodeMarker(value){
+  if(typeof value!=='string'||!value.startsWith('npvs1:'))return value;
+  const token=value.slice(6);
+  if(!token||token.length>131072||token.length%4===1||
+     !/^[A-Za-z0-9+/_-]+={0,2}$/.test(token))
+    throw new Error('Invalid NPVO1 encoded field');
+  let bytes;
+  try{bytes=b64ToBytes(token);}catch(_){throw new Error('Invalid NPVO1 Base64 encoding');}
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+  catch(_){throw new Error('Invalid NPVO1 UTF-8 field');}
+}
+function npvoDecodeTree(value,depth=0){
+  if(depth>32)throw new Error('NPVO1 nesting limit exceeded');
+  if(typeof value==='string')return npvoDecodeMarker(value);
+  if(Array.isArray(value))return value.map(v=>npvoDecodeTree(v,depth+1));
+  if(value&&typeof value==='object'){
+    const output=Object.create(null);
+    for(const [key,val] of Object.entries(value)){
+      if(key==='__proto__'||key==='constructor'||key==='prototype')
+        throw new Error('Unsafe NPVO1 object key');
+      output[key]=npvoDecodeTree(val,depth+1);
+    }
+    return output;
+  }
+  return value;
+}
+const NPVO_PROFILE_FIELDS=new Set([
+  'configType','configVersion','subscriptionId','addedTime','remarks',
+  'server','serverPort','password','method','alterId','aid',
+  'network','headerType','host','path','security','sni','alpn',
+  'fingerPrint','fingerprint','insecure','tlsAllowInsecure','allowInsecure',
+  'flow','publicKey','shortId','spiderX','mode','serviceName','authority',
+  'xhttpMode','xhttpExtra','pinnedPeerCertSha256','verifyPeerCertByName'
+]);
+function npvoCheckLinkProfile(profile){
+  if(!profile||typeof profile!=='object'||Array.isArray(profile))
+    throw new Error('Expected an NPV profile object');
+  const type=Number(profile.configType);
+  if(![1,3,5,6].includes(type))throw new Error('Unsupported NPV configType');
+  for(const [key,value] of Object.entries(profile)){
+    if(!NPVO_PROFILE_FIELDS.has(key)&&value!==undefined&&value!==null&&value!=='')
+      throw new Error('No verified mapping for profile field '+key);
+  }
+  const port=Number(profile.serverPort);
+  if(!Number.isInteger(port)||port<1||port>65535||!String(profile.server||'').trim())
+    throw new Error('Invalid server or port');
+  if(!String(profile.password||'').trim())throw new Error('Missing protocol credentials');
+  if(profile.tlsAllowInsecure!==undefined&&profile.insecure!==undefined &&
+    truthyParam(profile.tlsAllowInsecure)!==truthyParam(profile.insecure))
+    throw new Error('Conflicting TLS certificate validation settings');
+  const network=normalizeNetworkId(firstValue(profile.network,'tcp'));
+  if(!['tcp','ws','grpc','http','httpupgrade','splithttp','xhttp'].includes(network))
+    throw new Error('Unsupported NPV transport');
+  const mode=String(profile.mode||'');
+  const xhttpMode=String(profile.xhttpMode||'');
+  if((mode||xhttpMode)&&network!=='xhttp'){
+    // NPV's older gRPC profiles store an explicit "gun" mode in both fields.
+    if(network!=='grpc'||(mode&&mode!=='gun')||(xhttpMode&&xhttpMode!=='gun'))
+      throw new Error('Unrepresentable NPV transport mode');
+  }
+  if(network==='xhttp'&&mode&&xhttpMode&&mode!==xhttpMode)
+    throw new Error('Conflicting XHTTP mode settings');
+  if(profile.publicKey&&String(profile.security)!=='reality')
+    throw new Error('REALITY public key without REALITY security');
+  if(type===3 && network!=='tcp')throw new Error('Shadowsocks transport cannot be exported as a standard SS URI');
+  // Some historical exports use UUID-shaped identifiers with non-RFC version bits.
+  // Preserve them verbatim; do not rewrite or silently discard those credentials.
+  const uuidShape=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+  if((type===1||type===5)&&!uuidShape.test(String(profile.password)))
+    throw new Error('VMess/VLESS credentials do not have UUID-compatible syntax');
+}
+function npvoRecognizeOpen(raw,name){
+  let original;
+  try{original=JSON.parse(raw.replace(/^NPVO1\s*/,'').trim());}
+  catch(_){throw new Error('Invalid open NPVO1 configuration JSON');}
+  if(!original||!Array.isArray(original.configs)||!original.configs.length||
+     original.configs.length>2000)
+    throw new Error('NPVO1 contains no configs or exceeds the 2000-profile limit');
+  const obj=npvoDecodeTree(original);
+  const links=[],failures=[];
+  for(let index=0;index<obj.configs.length;index++){
+    const config=obj.configs[index];
+    try{
+      if(!config||!config.v2rayProfile)throw new Error('Missing v2rayProfile');
+      npvoCheckLinkProfile(config.v2rayProfile);
+      const result=convertJSONToLinks(config,name);
+      if(result.errors.length||result.links.length!==1)
+        throw new Error(result.errors[0]||'Profile did not produce one verified link');
+      links.push(result.links[0].link);
+    }catch(error){
+      failures.push('Profile '+(index+1)+': '+String(error.message||error));
+    }
+  }
+  // No partial subscription is advertised as complete: keep all profiles in decoded JSON.
+  const complete=failures.length===0 && links.length===obj.configs.length;
+  return {kind:'npvo',label:'NPVO1 open NPV export · '+
+    (complete?links.length+' verified links':links.length+'/'+obj.configs.length+' mapped; links withheld'),
+    name,text:raw,obj,links:complete?links:[],notes:failures};
+}
+
 function smartRecognizeText(text,name='pasted input'){
   const raw=String(text||'').trim();
   if(!raw)throw new Error('Empty input');
   if(raw.length>1048576)throw new Error('Maximum text input is 1 MB');
-  if(/^NPVO1(?:\s|$)/.test(raw)){
-    let obj;
-    try{obj=JSON.parse(raw.replace(/^NPVO1\s*/,'').trim());}
-    catch(_){throw new Error('Invalid open NPVO1 configuration JSON');}
-    if(!obj||!Array.isArray(obj.configs)||!obj.configs.length)throw new Error('NPVO1 has no configs');
-    const links=[];
-    for(const config of obj.configs){
-      const converted=convertJSONToLinks(config,name);
-      if(converted.errors.length)throw new Error(converted.errors.join('; '));
-      if(!converted.links.length)throw new Error('NPVO1 contains a config without verified share-link mapping');
-      links.push(...converted.links.map(x=>x.link));
-    }
-    return {kind:'npvo',label:'NPVO1 unencrypted NPV export',name,text:raw,links};
-  }
+  if(/^NPVO1(?:\s|$)/.test(raw))return npvoRecognizeOpen(raw,name);
   if(/^NPVT1(?:\s|$)/.test(raw)){
     const res=processTextContent(raw,name,true);
     if(!res.links.length)throw new Error(res.errors.join('; ')||'NPVT1 contained no supported share links');
@@ -4364,10 +4452,17 @@ async function smartRecognizeFile(file){
       notes=output.errors;
     }else{
       const output=convertJSONToLinks(obj,name);
-      links=output.errors.length?[]:output.links.map(x=>x.link);
-      notes=output.errors;
+      const expected=Array.isArray(obj&&obj.configs)?obj.configs.length:null;
+      const allMapped=!output.errors.length && (expected===null || output.links.length===expected);
+      links=allMapped?output.links.map(x=>x.link):[];
+      notes=output.errors.slice();
+      if(!allMapped && !notes.length)
+        notes.push('Not all encrypted profiles have verified share-link mappings; decoded JSON remains available');
     }
-    return {kind:'npvs-decrypted',label:'NPVS v'+decoded.version+' · authenticated · '+links.length+' share link(s)',
+    const incomplete=notes.length>0;
+    return {kind:'npvs-decrypted',label:'NPVS v'+decoded.version+
+      ' · AEAD verified (creator signature not verified) · '+
+      (incomplete?'links withheld; review native JSON':links.length+' share link(s)'),
       name,obj,links,text:typeof obj==='string'?obj:JSON.stringify(obj),notes};
   }
   if(/\.nm$/i.test(name)){
@@ -4601,7 +4696,7 @@ function smartConvertRecords(records,target){
     return JSON.stringify(source.obj,null,2);
   }
   if(target==='json'){
-    if(!['json','xray','singbox','mihomo','netmod','tt-json','npvs-decrypted'].includes(source.kind))
+    if(!['json','xray','singbox','mihomo','netmod','tt-json','npvs-decrypted','npvo'].includes(source.kind))
       throw new Error('Not a JSON source');
     return source.kind==='npvs-decrypted' && typeof source.obj==='string' ? source.obj :
       JSON.stringify(source.obj||parseJsonWithComments(source.text),null,2);
@@ -4694,7 +4789,13 @@ function smartRender(){
     SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')
+      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')+
+      (()=>{
+        const warnings=smartState.records.filter(r=>r.kind==='npvo'||r.kind==='npvs-decrypted')
+          .flatMap(r=>r.notes||[]);
+        return warnings.length?'\n'+warnings.length+' profile warning(s); verified links withheld when incomplete:\n'+
+          warnings.slice(0,3).join('\n')+(warnings.length>3?'\n… more warnings':''):'';
+      })()
     :'Ready. Files are processed entirely in this browser.';
 }
 function smartChooseTarget(){

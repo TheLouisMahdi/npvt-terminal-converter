@@ -4,6 +4,7 @@ on:
     paths:
       - "tools/npvs-browser-runtime.js"
       - "tests/npvs-gen2-tables.test.cjs"
+      - "tests/npvs-signature-diagnostic.cjs"
       - ".github/workflows/npvs-gen2-compat.yml"
   workflow_dispatch:
 
@@ -36,6 +37,10 @@ jobs:
           NPVS_COMPAT_TABLE_FILE: /tmp/npvs-gen2-reference.bin
           NPVS_COMPAT_FIXTURE_FILE: /tmp/npvs-gen2-reference-fixture.npvs
         run: node --test tests/npvs-gen2-tables.test.cjs
+      - name: Explore outer-signature verification scope (non-enforcing)
+        env:
+          NPVS_COMPAT_FIXTURE_FILE: /tmp/npvs-gen2-reference-fixture.npvs
+        run: node tests/npvs-signature-diagnostic.cjs
       - name: Remove ephemeral third-party reference bytes
         if: always()
         run: rm -f /tmp/npvs-gen2-reference.z /tmp/npvs-gen2-reference.bin /tmp/npvs-gen2-reference-fixture.npvs /tmp/npvs-gen2-upstream-test.go
