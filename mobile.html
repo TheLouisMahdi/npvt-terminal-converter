@@ -287,6 +287,22 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
 .npvs-password-row button{flex:0 1 auto;min-height:42px}
 .mobile-standalone .npvs-password-row button{flex:1 1 100%}
 
+/* Offline-only known-passphrase dialog; no stored credentials. */
+dialog.npvs-password-dialog{width:min(660px,calc(100vw - 26px));max-height:calc(100dvh - 32px);overflow:auto;
+  padding:25px;border:1px solid var(--line2);border-radius:21px;
+  background:var(--panel2);box-shadow:var(--shadow);color:var(--text);font-family:var(--sans);z-index:90}
+dialog.npvs-password-dialog::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(4px)}
+.npvs-password-dialog h2{margin:0 0 10px;font-size:1.3rem}
+.npvs-password-dialog p{color:var(--muted);line-height:1.55}
+.npvs-password-dialog textarea{display:block;width:100%;min-height:170px;resize:vertical;padding:12px;
+  border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--text);
+  font:13px/1.7 var(--mono);margin:12px 0}
+.npvs-password-dialog .actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px}
+.npvs-password-dialog button{min-height:39px}
+.npvs-password-dialog .npvs-note{font-size:.86rem}
+.npvs-password-dialog [role="status"]{display:block;min-height:20px;margin-top:14px;white-space:pre-wrap;color:var(--green)}
+
+
 /* Mobile-only presentation; desktop Index.html stays untouched. */
 body.mobile-standalone{
   background:linear-gradient(180deg,#0b1712 0%,#07100c 100%);
@@ -375,22 +391,6 @@ body.mobile-standalone:after{display:none}
   .mobile-standalone .smart-workspace{padding:22px}
   .mobile-standalone .smart-workspace textarea{min-height:190px}
 }
-
-
-/* Offline-only known-passphrase dialog; no stored credentials. */
-dialog.npvs-password-dialog{width:min(660px,calc(100vw - 26px));max-height:calc(100dvh - 32px);overflow:auto;
-  padding:25px;border:1px solid var(--line2);border-radius:21px;
-  background:var(--panel2);box-shadow:var(--shadow);color:var(--text);font-family:var(--sans);z-index:90}
-dialog.npvs-password-dialog::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(4px)}
-.npvs-password-dialog h2{margin:0 0 10px;font-size:1.3rem}
-.npvs-password-dialog p{color:var(--muted);line-height:1.55}
-.npvs-password-dialog textarea{display:block;width:100%;min-height:170px;resize:vertical;padding:12px;
-  border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--text);
-  font:13px/1.7 var(--mono);margin:12px 0}
-.npvs-password-dialog .actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px}
-.npvs-password-dialog button{min-height:39px}
-.npvs-password-dialog .npvs-note{font-size:.86rem}
-.npvs-password-dialog [role="status"]{display:block;min-height:20px;margin-top:14px;white-space:pre-wrap;color:var(--green)}
 
 </style>
 </head>
@@ -4878,6 +4878,10 @@ $('smartPasswordOpen').addEventListener('click',()=>{
   $('smartPasswordDialog').showModal();
 });
 $('smartPasswordClose').addEventListener('click',()=>$('smartPasswordDialog').close());
+$('smartPasswordDialog').addEventListener('close',()=>{
+  $('smartPasswordList').value='';
+  $('smartPasswordTxt').value='';
+});
 $('smartPasswordChooseTxt').addEventListener('click',()=>$('smartPasswordTxt').click());
 $('smartPasswordTxt').addEventListener('change',async e=>{
   const file=e.target.files&&e.target.files[0];
@@ -4912,6 +4916,7 @@ $('smartPasswordForget').addEventListener('click',()=>{
   smartPasswordStop=true;
   smartSavedPassphrases=[];
   $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
   $('smartPasswordsSaved').textContent='0 known passphrases · session only';
   $('smartPasswordProgress').textContent='Passphrase list forgotten from session state.';
 });
@@ -5146,6 +5151,7 @@ $('smartReset').addEventListener('click',()=>{
   smartPasswordStop=true;
   smartSavedPassphrases=[];
   $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
   $('smartPasswordsSaved').textContent='0 known passphrases · session only';
   $('smartPasswordProgress').textContent='No passphrases saved for this session';
   npvsClearGen2Keys();
