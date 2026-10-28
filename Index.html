@@ -284,6 +284,22 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   border-radius:12px;background:rgba(4,17,12,.72);color:#d9f2e4;padding:12px;font-size:15px}
 .npvs-password-row button{flex:0 1 auto;min-height:42px}
 .mobile-standalone .npvs-password-row button{flex:1 1 100%}
+
+/* Offline-only known-passphrase dialog; no stored credentials. */
+dialog.npvs-password-dialog{width:min(660px,calc(100vw - 26px));max-height:calc(100dvh - 32px);overflow:auto;
+  padding:25px;border:1px solid var(--line2);border-radius:21px;
+  background:var(--panel2);box-shadow:var(--shadow);color:var(--text);font-family:var(--sans);z-index:90}
+dialog.npvs-password-dialog::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(4px)}
+.npvs-password-dialog h2{margin:0 0 10px;font-size:1.3rem}
+.npvs-password-dialog p{color:var(--muted);line-height:1.55}
+.npvs-password-dialog textarea{display:block;width:100%;min-height:170px;resize:vertical;padding:12px;
+  border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--text);
+  font:13px/1.7 var(--mono);margin:12px 0}
+.npvs-password-dialog .actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px}
+.npvs-password-dialog button{min-height:39px}
+.npvs-password-dialog .npvs-note{font-size:.86rem}
+.npvs-password-dialog [role="status"]{display:block;min-height:20px;margin-top:14px;white-space:pre-wrap;color:var(--green)}
+
 </style>
 </head>
 <body>
@@ -340,10 +356,12 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
         </div>
         <input type="file" id="smartFiles" multiple accept=".npvt,.npvs,.nm,.json,.yaml,.yml,.ini,.conf,.txt,.base64,*/*" hidden>
         <textarea id="smartInput" aria-describedby="smartDetected smartStatus" spellcheck="false" placeholder="Paste VLESS, VMess, Trojan, SS, Hysteria2, TUIC, AnyTLS, NPVT1, Mihomo YAML/JSON, WireGuard INI, TT deep link, Base64 subscription..."></textarea>
-        <label class="input-label" for="smartPassphrase">Optional NPVS creator passphrase (used locally only)</label>
+        <label class="input-label" for="smartPassphrase">Optional single NPVS creator passphrase (local only)</label>
         <div class="npvs-password-row">
-          <input id="smartPassphrase" type="password" autocomplete="off" spellcheck="false" placeholder="Only if the file requires a passphrase">
+          <input id="smartPassphrase" type="password" autocomplete="off" spellcheck="false" placeholder="Single passphrase (optional)">
           <button class="btn secondary" type="button" id="smartUnlock">Unlock selected files</button>
+          <button class="btn secondary" type="button" id="smartPasswordOpen">Known passphrases · batch</button>
+          <span id="smartPasswordsSaved" role="status">0 known passphrases · session only</span>
         </div>
         <div class="npvs-password-row">
           <input id="smartAppKeyFile" type="file" accept=".json,application/json" hidden>
@@ -606,6 +624,23 @@ section[id]:target{outline:1px solid var(--line2);outline-offset:-1px}
   </footer>
 </main>
 <div class="toast" id="toast">Done.</div>
+<dialog class="npvs-password-dialog" id="smartPasswordDialog" aria-labelledby="smartPasswordTitle">
+  <h2 id="smartPasswordTitle">Known NPVS passphrases · local batch verification</h2>
+  <p>Paste creator passphrases you already have, one per line, or load a local TXT file. The application checks these exact values automatically against selected creator-passphrase NPVS files. It does not generate guesses or contact a server.</p>
+  <label class="input-label" for="smartPasswordList">Your existing passphrases (one per line)</label>
+  <textarea id="smartPasswordList" autocomplete="off" autocapitalize="none" spellcheck="false"
+    placeholder="Paste your known passphrases here. Exact spaces are preserved."></textarea>
+  <input type="file" id="smartPasswordTxt" accept=".txt,text/plain" hidden>
+  <p class="npvs-note">Up to 128 unique passphrases (16 KB). Saved only in this browser tab's memory; never sent, downloaded, or placed in localStorage. Closing or refreshing the tab forgets them. JavaScript cannot guarantee instant erasure of immutable strings from memory.</p>
+  <div class="actions">
+    <button class="btn secondary" type="button" id="smartPasswordChooseTxt">Import local TXT</button>
+    <button class="btn" type="button" id="smartPasswordApply">Use these passphrases</button>
+    <button class="btn secondary" type="button" id="smartPasswordStop">Stop current scan</button>
+    <button class="btn secondary" type="button" id="smartPasswordForget">Forget list</button>
+    <button class="btn secondary" type="button" id="smartPasswordClose">Close</button>
+  </div>
+  <span id="smartPasswordProgress" role="status" aria-live="polite">No passphrases saved for this session</span>
+</dialog>
 <script>
 
 
@@ -4314,7 +4349,83 @@ function smartRecognizeText(text,name='pasted input'){
   }
   throw new Error('Unknown configuration format. Paste a full config or choose a supported file.');
 }
-async function smartRecognizeFile(file){
+/* Session-only verification of explicitly supplied NPVS creator passphrases.
+ * No dictionary generation, mutation, online requests, persistence or secret logging.
+ * Inlined into the desktop and standalone mobile HTML files.
+ */
+const NPVS_KNOWN_MAX=128;
+function npvsParseKnownPassphrases(input){
+  if(typeof input!=='string'||input.length>16384)
+    throw new Error('Passphrase list exceeds the 16 KB limit');
+  const unique=new Set();
+  for(const entry of input.replace(/\r\n/g,'\n').split('\n')){
+    const item=entry.endsWith('\r')?entry.slice(0,-1):entry;
+    if(!item)continue;
+    if(item.length>256||/[\u0000-\u001f\u007f]/.test(item))
+      throw new Error('Each passphrase must be a single line, at most 256 characters');
+    unique.add(item);
+    if(unique.size>NPVS_KNOWN_MAX)throw new Error('At most 128 supplied passphrases per session');
+  }
+  if(!unique.size)throw new Error('Provide at least one nonempty passphrase');
+  return [...unique];
+}
+function npvsKnownCandidates(manual,supplied){
+  const unique=new Set();
+  if(manual)unique.add(manual);
+  for(const entry of supplied)unique.add(entry);
+  return [...unique];
+}
+async function npvsMatchKnownPassphrases(input,candidates,onProgress=()=>{},isCurrent=()=>true){
+  if(!(input instanceof Uint8Array))input=new Uint8Array(input);
+  if(input.length>NPVS_PHASE2_MAX||input.length<9)
+    throw new Error('Invalid NPVS candidate file size');
+  let salt,wrap,iterations;
+  if(input[4]===5){
+    const env=npvsGen2(input,'');
+    if(env.method!==1)return {applicable:false,checked:0};
+    ({salt,wrap,iterations}=env);
+  }else if(input[4]<=1){
+    const env=npvsGen1(input,'');
+    if(!env.locked)return {applicable:false,checked:0};
+    if(env.locked.kdf!=='pbkdf2-hmac-sha256')
+      throw new Error('Unsupported Gen-1 passphrase KDF');
+    salt=npvsB64(env.locked.salt);
+    const wrapped=npvsB64(env.locked.wrap);
+    if(salt.length!==16||wrapped.length!==60)throw new Error('Invalid Gen-1 passphrase block');
+    wrap=wrapped;
+    iterations=env.locked.iters;
+  }else{
+    return {applicable:false,checked:0};
+  }
+  if(!Array.isArray(candidates)||candidates.length>NPVS_KNOWN_MAX+1)
+    throw new Error('Too many supplied passphrases');
+  for(let i=0;i<candidates.length;i++){
+    if(!isCurrent())return {cancelled:true,checked:i};
+    const pass=candidates[i];
+    if(typeof pass!=='string'||!pass||pass.length>256)
+      throw new Error('Invalid supplied passphrase');
+    onProgress(i+1,candidates.length);
+    let key,plaintext;
+    try{
+      key=await npvsPbkdf2(pass,salt,iterations);
+      // Verify only the wrapped-DEK authenticated tag until one key matches.
+      // This avoids reconstructing profiles for failed supplied passphrases.
+      plaintext=npvsOpen(key,wrap.subarray(0,12),wrap.subarray(12),salt);
+      if(plaintext.length!==32)throw new Error('Invalid decrypted key length');
+      if(!isCurrent())return {cancelled:true,checked:i+1};
+      return {passphrase:pass,index:i,checked:i+1,applicable:true};
+    }catch(error){
+      if(!/authentication failed/.test(String(error.message||error)))
+        throw error; // Malformed files and unsupported schemes are NOT bad-password results.
+    }finally{
+      if(key)key.fill(0);
+      if(plaintext)plaintext.fill(0);
+    }
+  }
+  return {passphrase:null,checked:candidates.length,applicable:true};
+}
+
+async function smartRecognizeFile(file,isCurrent=()=>true,onPasswordProgress=()=>{}){
   if(!file||file.size>1048576)throw new Error('Files must be 1 MB or smaller');
   const bytes=new Uint8Array(await file.arrayBuffer()),name=file.name||'config';
   let npvsBytes=bytes;
@@ -4325,8 +4436,26 @@ async function smartRecognizeFile(file){
     }catch(_){ /* not a Base64-wrapped NPVS */ }
   }
   if(npvsBytes.length>=9&&npvsBytes[0]===78&&npvsBytes[1]===80&&npvsBytes[2]===86&&npvsBytes[3]===83){
-    const password=$('smartPassphrase').value;
+    let password=$('smartPassphrase').value;
     const meta=npvsBytes[4]===5?inspectNpvsV5(npvsBytes):null;
+    // Exact user-supplied values only; never derive guesses from filenames or profiles.
+    // For AppKey and recipient-key exports this list is NOT a valid unlock method.
+    const gen1Locked=!meta && npvsBytes[4]<=1 && !!npvsGen1(npvsBytes,'').locked;
+    if(smartSavedPassphrases.length && ((meta&&meta.unlock==='creator-passphrase')||gen1Locked)){
+      const attempts=npvsKnownCandidates(password,smartSavedPassphrases);
+      const result=await npvsMatchKnownPassphrases(npvsBytes,attempts,onPasswordProgress,isCurrent);
+      if(result.cancelled)throw new Error('NPVS_BATCH_CANCELLED');
+      if(result.passphrase){
+        password=result.passphrase;
+        // Reuse the successful entry first for the next file, without showing its value.
+        const found=smartSavedPassphrases.indexOf(password);
+        if(found>0){smartSavedPassphrases.splice(found,1);smartSavedPassphrases.unshift(password);}
+      }else{
+        return {kind:'npvs',label:'NPVS v'+npvsBytes[4]+' · creator-passphrase · locked',
+          name,meta:{...(meta||{format:'NPVS',version:npvsBytes[4]}),encrypted:true,
+            reason:'None of '+result.checked+' supplied passphrases authenticated this file'},links:[]};
+      }
+    }
     // Inspect passphrase/recipient files without parsing still-encrypted NPF records.
     // Gen-2 AppKey goes through the authenticated decoder when key material exists.
     let missingGen2AppKey=false;
@@ -4572,8 +4701,11 @@ function smartConvertRecords(records,target){
     return JSON.stringify(records.map(r=>({name:r.name,format:r.label,content:r.text})),null,2);
   }
   if(target==='links'||target==='subscription'||target==='npvt'){
-    const links=records.flatMap(smartSourceLinks);
-    if(!links.length)throw new Error('No share links available');
+    // Locked encrypted files are visible in the source panel but cannot contribute
+    // decrypted links. Export verified successes only; warn prominently in status.
+    const sources=target==='npvt'?records:records.filter(r=>r.kind!=='npvs');
+    const links=sources.flatMap(smartSourceLinks);
+    if(!links.length)throw new Error('No unlocked share links available');
     const unique=[...new Set(links)];
     if(target==='npvt'){
       if(!records.every(r=>r.kind==='links'||r.kind==='subscription'))
@@ -4651,6 +4783,58 @@ async function smartAvailableResponsive(records,rejections,isCurrent){
 
 document.addEventListener('dragover',e=>e.preventDefault());
 let smartLastFiles=[];
+
+let smartSavedPassphrases=[];
+let smartPasswordStop=false;
+$('smartPasswordOpen').addEventListener('click',()=>{
+  $('smartPasswordProgress').textContent=smartSavedPassphrases.length+
+    ' passphrase(s) saved in tab memory · values hidden';
+  $('smartPasswordDialog').showModal();
+});
+$('smartPasswordClose').addEventListener('click',()=>$('smartPasswordDialog').close());
+$('smartPasswordDialog').addEventListener('close',()=>{
+  $('smartPasswordList').value='';
+  $('smartPasswordTxt').value='';
+});
+$('smartPasswordChooseTxt').addEventListener('click',()=>$('smartPasswordTxt').click());
+$('smartPasswordTxt').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(file.size>16384){
+    $('smartPasswordProgress').textContent='TXT file exceeds 16 KB';return;
+  }
+  try{
+    const value=await file.text();
+    npvsParseKnownPassphrases(value); // Validate without silently saving until confirmed.
+    $('smartPasswordList').value=value;
+    $('smartPasswordProgress').textContent='List ready; click Use these passphrases.';
+  }catch(error){$('smartPasswordProgress').textContent=String(error.message||error);}
+});
+$('smartPasswordApply').addEventListener('click',()=>{
+  try{
+    const list=npvsParseKnownPassphrases($('smartPasswordList').value);
+    smartSavedPassphrases=list;
+    $('smartPasswordList').value='';
+    $('smartPasswordsSaved').textContent=list.length+' known passphrases · session only';
+    $('smartPasswordProgress').textContent=list.length+' passphrases ready. Only exact values will be tested.';
+    $('smartPasswordDialog').close();
+    if(smartLastFiles.length)void smartImportFiles(smartLastFiles);
+  }catch(error){$('smartPasswordProgress').textContent=String(error.message||error);}
+});
+$('smartPasswordStop').addEventListener('click',()=>{
+  smartPasswordStop=true;
+  $('smartPasswordProgress').textContent='Stopping after the current PBKDF2 operation…';
+});
+$('smartPasswordForget').addEventListener('click',()=>{
+  smartPasswordStop=true;
+  smartSavedPassphrases=[];
+  $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
+  $('smartPasswordsSaved').textContent='0 known passphrases · session only';
+  $('smartPasswordProgress').textContent='Passphrase list forgotten from session state.';
+});
+
 const smartState={records:[],outputs:{},rejections:{}};
 function smartDefaultTarget(records,formats){
   if(!formats.length)return '';
@@ -4700,7 +4884,9 @@ function smartRender(){
     SMART_TARGETS[key].label+': '+reason).join('\n');
   status.textContent=smartState.records.length
     ?smartState.records.length+' source(s) detected. '+formats.length+' compatible output(s).'+
-      (smartState.records.some(r=>r.kind==='npvs')?'\nLocked NPVS: compatible unlocking material is required; inspection only.':'')+
+      (smartState.records.some(r=>r.kind==='npvs')?
+        '\n'+smartState.records.filter(r=>r.kind==='npvs').length+
+        ' locked NPVS file(s). Decoded exports include successfully unlocked sources only; locked items remain listed above.':'')+
       (()=>{
         const warnings=smartState.records.filter(r=>r.kind==='npvo'||r.kind==='npvs-decrypted')
           .flatMap(r=>r.notes||[]);
@@ -4768,6 +4954,7 @@ $('smartInput').addEventListener('input',()=>{
 });
 async function smartImportFiles(files){
   if(!files||!files.length)return;
+  smartPasswordStop=false;
   smartLastFiles=Array.from(files);
   clearTimeout(smartDebounce);
   const revision=smartBegin('Inspecting '+files.length+' file(s) locally…');
@@ -4778,13 +4965,23 @@ async function smartImportFiles(files){
   }
   $('smartInput').value='';
   const records=[],issues=[];
-  for(const file of files){
+  for(const [index,file] of Array.from(files).entries()){
     if(revision!==smartRevision)return;
+    if(smartPasswordStop)break;
     try{
-      const record=await smartRecognizeFile(file);
+      const record=await smartRecognizeFile(file,()=>revision===smartRevision&&!smartPasswordStop,
+        (n,total)=>{
+          const message='Checking supplied passphrases for file '+(index+1)+'/'+files.length+
+            ': '+n+'/'+total+' (values hidden)';
+          $('smartPasswordProgress').textContent=message;
+          $('smartStatus').textContent=message;
+        });
       if(revision!==smartRevision)return;
       records.push(record);
-    }catch(e){issues.push(file.name+': '+(e.message||e));}
+    }catch(e){
+      if(String(e.message||e)==='NPVS_BATCH_CANCELLED')break;
+      issues.push(file.name+': '+(e.message||e));
+    }
   }
   if(revision!==smartRevision)return;
   await smartCommit(records,revision);
@@ -4792,6 +4989,10 @@ async function smartImportFiles(files){
   if(issues.length){
     $('smartStatus').textContent+='\n'+issues.length+' source(s) rejected:\n'+issues.slice(0,8).join('\n');
   }
+  if(smartPasswordStop)$('smartStatus').textContent+='\nStopped by user; only completed files are shown.';
+  else if(smartSavedPassphrases.length)$('smartPasswordProgress').textContent=
+    'Completed local passphrase verification · '+records.filter(r=>r.kind==='npvs-decrypted').length+
+    ' decrypted; '+records.filter(r=>r.kind==='npvs').length+' still locked.';
 }
 $('smartLoadAppKey').addEventListener('click',()=>$('smartAppKeyFile').click());
 $('smartAppKeyFile').addEventListener('change',async event=>{
@@ -4863,6 +5064,12 @@ $('smartReset').addEventListener('click',()=>{
   const revision=++smartRevision;
   $('smartFiles').value='';$('smartInput').value='';$('smartPassphrase').value='';smartLastFiles=[];
   ++smartTableImportRevision;
+  smartPasswordStop=true;
+  smartSavedPassphrases=[];
+  $('smartPasswordList').value='';
+  $('smartPassphrase').value='';
+  $('smartPasswordsSaved').textContent='0 known passphrases · session only';
+  $('smartPasswordProgress').textContent='No passphrases saved for this session';
   npvsClearGen2Keys();
   $('smartAppKeyStatus').textContent='No authorized AppKey loaded';
   $('smartTableStatus').textContent='No compatible tables loaded';

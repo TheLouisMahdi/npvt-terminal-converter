@@ -9,6 +9,7 @@ const path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'..','tools','npvs-browser-runtime.js'),'utf8');
 const context=vm.createContext({Uint8Array,Uint32Array,TextEncoder,TextDecoder,DataView,BigInt,Map,Set,Object,crypto:crypto.webcrypto,atob,btoa});
 vm.runInContext(code,context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'..','tools','npvs-known-passphrases.js'),'utf8'),context);
 function call(name,args){context.args=args;return vm.runInContext(`${name}(...args)`,context);}
 function U32(n){const b=Buffer.alloc(4);b.writeUInt32BE(n);return b;}
 function B16(n){const b=Buffer.alloc(2);b.writeUInt16BE(n);return b;}
@@ -163,4 +164,48 @@ test('AppKey import rejects invalid and duplicate entries without partial mutati
   assert.throws(()=>call('npvsInstallGen2Keys',[{format:'npvs-gen2-keys-v1',entries:[
     entry,{configId:f.configId,salt:f.salt,a16:'gg'}]}]),/invalid/);
   assert.equal(call('npvsHasGen2Key',[Buffer.from(f.configId,'hex'),Buffer.from(f.salt,'hex')]),false);
+});
+
+
+test('Known-passphrase parser preserves exact whitespace, deduplicates, and bounds inputs',()=>{
+  const entries=call('npvsParseKnownPassphrases',['first\r\nsecond\nfirst\n with spaces \r\n']);
+  assert.deepEqual(Array.from(entries),['first','second',' with spaces ']);
+  assert.throws(()=>call('npvsParseKnownPassphrases',['\n\n']),/at least one/);
+  assert.throws(()=>call('npvsParseKnownPassphrases',['x'.repeat(257)]),/256/);
+  assert.throws(()=>call('npvsParseKnownPassphrases',[Array.from({length:129},(_,n)=>'pass'+n).join('\n')]),/128/);
+  assert.throws(()=>call('npvsParseKnownPassphrases',['\u0000']),/single line/);
+  const combined=call('npvsKnownCandidates',['second',['first','second','third']]);
+  assert.deepEqual(Array.from(combined),['second','first','third']);
+});
+test('Known user-supplied passwords authenticate Gen-1 without extracting on wrong values',async()=>{
+  const file=fixtureGen1(),steps=[];
+  const found=await call('npvsMatchKnownPassphrases',[file,['wrong-one','wrong-two',password],
+    (i,total)=>steps.push([i,total]),()=>true]);
+  assert.equal(found.passphrase,password);
+  assert.equal(found.checked,3);
+  assert.deepEqual(steps,[[1,3],[2,3],[3,3]]);
+  const decrypted=await call('npvsPhase2Decode',[file,found.passphrase]);
+  assert.equal(decrypted.status,'unlocked');
+  const locked=await call('npvsMatchKnownPassphrases',[file,['wrong'],()=>{},()=>true]);
+  assert.equal(locked.passphrase,null);
+  assert.equal(locked.checked,1);
+});
+test('Known user-supplied passwords authenticate Gen-2; AppKey and recipients remain distinct',async()=>{
+  const protectedFile=fixtureGen2();
+  const found=await call('npvsMatchKnownPassphrases',[protectedFile,['incorrect',password]]);
+  assert.equal(found.passphrase,password);
+  assert.equal(found.checked,2);
+  const valid=await call('npvsPhase2Decode',[protectedFile,found.passphrase]);
+  assert.equal(valid.status,'unlocked');
+  const app=await call('npvsMatchKnownPassphrases',[fixtureGen2(true).file,[password]]);
+  assert.equal(app.applicable,false);
+  const recipient=await call('npvsMatchKnownPassphrases',[lockedV5(0),[password]]);
+  assert.equal(recipient.applicable,false);
+});
+test('Known-passphrase matching respects cancellation and malformed encrypted input',async()=>{
+  const file=fixtureGen2();
+  const result=await call('npvsMatchKnownPassphrases',[file,[password],()=>{},()=>false]);
+  assert.equal(result.cancelled,true);
+  assert.equal(result.checked,0);
+  await assert.rejects(call('npvsMatchKnownPassphrases',[Buffer.alloc(2),[password]]),/size/);
 });
